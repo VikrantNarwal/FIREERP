@@ -2,29 +2,92 @@
 
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { BarChart3, TrendingUp, AlertTriangle, Package, Users, Clock } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Badge } from '@/components/ui/badge'
+import { BarChart3, TrendingUp, AlertTriangle, Package, Users, Clock, AlertCircle, CheckCircle, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/api'
+import { formatDistanceToNow } from 'date-fns'
 
 export default function CEODashboard() {
   const [stats, setStats] = useState(null)
+  const [alerts, setAlerts] = useState([])
   const [loading, setLoading] = useState(true)
+  const [selectedAlert, setSelectedAlert] = useState(null)
+  const [showAlertDetail, setShowAlertDetail] = useState(false)
 
   useEffect(() => {
     loadDashboardData()
-    const interval = setInterval(loadDashboardData, 60000)
+    const interval = setInterval(loadDashboardData, 30000) // Refresh every 30 seconds
     return () => clearInterval(interval)
   }, [])
 
   const loadDashboardData = async () => {
     try {
-      const data = await api.getDashboardStats()
-      setStats(data)
+      const [statsData, alertsData] = await Promise.all([
+        api.getDashboardStats(),
+        api.getAlerts({ status: 'OPEN' })
+      ])
+      setStats(statsData)
+      setAlerts(alertsData)
     } catch (error) {
+      console.error('Failed to load dashboard data:', error)
       toast.error('Failed to load dashboard data')
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleResolveAlert = async (alertId) => {
+    try {
+      await api.updateAlert(alertId, {
+        status: 'RESOLVED',
+        resolutionNotes: 'Resolved by CEO'
+      })
+      toast.success('Alert resolved successfully')
+      setShowAlertDetail(false)
+      loadDashboardData()
+    } catch (error) {
+      toast.error('Failed to resolve alert')
+    }
+  }
+
+  const handleAcknowledgeAlert = async (alertId) => {
+    try {
+      await api.updateAlert(alertId, {
+        status: 'ACKNOWLEDGED'
+      })
+      toast.success('Alert acknowledged')
+      setShowAlertDetail(false)
+      loadDashboardData()
+    } catch (error) {
+      toast.error('Failed to acknowledge alert')
+    }
+  }
+
+  const getSeverityColor = (severity) => {
+    switch (severity) {
+      case 'CRITICAL': return 'bg-red-500/10 border-red-500/50 text-red-400'
+      case 'HIGH': return 'bg-orange-500/10 border-orange-500/50 text-orange-400'
+      case 'MEDIUM': return 'bg-yellow-500/10 border-yellow-500/50 text-yellow-400'
+      case 'LOW': return 'bg-blue-500/10 border-blue-500/50 text-blue-400'
+      default: return 'bg-slate-500/10 border-slate-500/50 text-slate-400'
+    }
+  }
+
+  const getSeverityBadge = (severity) => {
+    const colors = {
+      'CRITICAL': 'bg-red-500 text-white',
+      'HIGH': 'bg-orange-500 text-white',
+      'MEDIUM': 'bg-yellow-500 text-black',
+      'LOW': 'bg-blue-500 text-white'
+    }
+    return <Badge className={colors[severity] || ''}>{severity}</Badge>
+  }
+
+  const getCategoryLabel = (category) => {
+    return category?.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase()) || category
   }
 
   if (loading) {
@@ -80,6 +143,13 @@ export default function CEODashboard() {
       icon: AlertTriangle,
       color: 'from-yellow-500 to-yellow-600',
       textColor: 'text-yellow-400'
+    },
+    {
+      title: 'Critical Alerts',
+      value: stats?.criticalAlerts || 0,
+      icon: AlertCircle,
+      color: 'from-pink-500 to-pink-600',
+      textColor: 'text-pink-400'
     }
   ]
 
@@ -151,48 +221,59 @@ export default function CEODashboard() {
         </Card>
 
         <Card className="bg-slate-900 border-slate-800">
-          <CardHeader>
-            <CardTitle className="text-white">Critical Alerts</CardTitle>
-            <CardDescription className="text-slate-400">Items requiring immediate attention</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-white">Critical Alerts</CardTitle>
+              <CardDescription className="text-slate-400">System-wide issues requiring attention</CardDescription>
+            </div>
+            <Badge variant="destructive" className="text-lg px-3 py-1">
+              {alerts?.length || 0}
+            </Badge>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {stats?.ordersDelayed > 0 && (
-                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 text-red-500" />
-                    <span className="text-sm font-medium text-red-400">
-                      {stats.ordersDelayed} orders are delayed
-                    </span>
+            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+              {alerts && alerts.length > 0 ? (
+                alerts.slice(0, 5).map((alert) => (
+                  <div
+                    key={alert.id}
+                    className={`p-3 border rounded-lg cursor-pointer hover:bg-slate-800/50 transition-colors ${getSeverityColor(alert.severity)}`}
+                    onClick={() => {
+                      setSelectedAlert(alert)
+                      setShowAlertDetail(true)
+                    }}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                          <span className="text-sm font-medium truncate">{alert.message}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs opacity-75">
+                          <span>{getCategoryLabel(alert.category)}</span>
+                          <span>•</span>
+                          <span>{alert.raisedBy?.firstName} {alert.raisedBy?.lastName}</span>
+                          <span>•</span>
+                          <span>{formatDistanceToNow(new Date(alert.createdAt), { addSuffix: true })}</span>
+                        </div>
+                      </div>
+                      {getSeverityBadge(alert.severity)}
+                    </div>
                   </div>
-                </div>
-              )}
-              {stats?.lowStockComponents > 0 && (
-                <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 text-yellow-500" />
-                    <span className="text-sm font-medium text-yellow-400">
-                      {stats.lowStockComponents} components below reorder level
-                    </span>
-                  </div>
-                </div>
-              )}
-              {stats?.pendingQC > 0 && (
-                <div className="p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-orange-500" />
-                    <span className="text-sm font-medium text-orange-400">
-                      {stats.pendingQC} items pending QC inspection
-                    </span>
-                  </div>
-                </div>
-              )}
-              {stats?.ordersDelayed === 0 && stats?.lowStockComponents === 0 && stats?.pendingQC === 0 && (
+                ))
+              ) : (
                 <div className="p-8 text-center">
-                  <p className="text-slate-400">No critical alerts</p>
+                  <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-2" />
+                  <p className="text-slate-400">No critical alerts - all systems operational</p>
                 </div>
               )}
             </div>
+            {alerts && alerts.length > 5 && (
+              <div className="mt-3 text-center">
+                <Button variant="ghost" size="sm" className="text-slate-400">
+                  View all {alerts.length} alerts
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -228,6 +309,85 @@ export default function CEODashboard() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Alert Detail Dialog */}
+      <Dialog open={showAlertDetail} onOpenChange={setShowAlertDetail}>
+        <DialogContent className="bg-slate-900 border-slate-800 text-white max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              <AlertCircle className="w-6 h-6 text-red-500" />
+              Critical Alert Details
+            </DialogTitle>
+          </DialogHeader>
+          {selectedAlert && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                {getSeverityBadge(selectedAlert.severity)}
+                <Badge variant="outline">{getCategoryLabel(selectedAlert.category)}</Badge>
+                {selectedAlert.order && (
+                  <Badge variant="secondary">Order: {selectedAlert.order.jobNumber}</Badge>
+                )}
+              </div>
+
+              <div>
+                <h3 className="text-sm font-semibold text-slate-400 mb-1">Message</h3>
+                <p className="text-white">{selectedAlert.message}</p>
+              </div>
+
+              {selectedAlert.details && (
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-400 mb-1">Details</h3>
+                  <p className="text-slate-300">{selectedAlert.details}</p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <h3 className="text-slate-400 mb-1">Raised By</h3>
+                  <p className="text-white">
+                    {selectedAlert.raisedBy?.firstName} {selectedAlert.raisedBy?.lastName}
+                    <span className="text-slate-400"> ({selectedAlert.raisedByRole})</span>
+                  </p>
+                </div>
+                <div>
+                  <h3 className="text-slate-400 mb-1">Created</h3>
+                  <p className="text-white">
+                    {formatDistanceToNow(new Date(selectedAlert.createdAt), { addSuffix: true })}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-4 border-t border-slate-800">
+                {selectedAlert.status === 'OPEN' && (
+                  <>
+                    <Button
+                      onClick={() => handleAcknowledgeAlert(selectedAlert.id)}
+                      variant="outline"
+                      className="flex-1"
+                    >
+                      Acknowledge
+                    </Button>
+                    <Button
+                      onClick={() => handleResolveAlert(selectedAlert.id)}
+                      className="flex-1 bg-green-600 hover:bg-green-700"
+                    >
+                      Resolve
+                    </Button>
+                  </>
+                )}
+                {selectedAlert.status === 'ACKNOWLEDGED' && (
+                  <Button
+                    onClick={() => handleResolveAlert(selectedAlert.id)}
+                    className="flex-1 bg-green-600 hover:bg-green-700"
+                  >
+                    Resolve
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
