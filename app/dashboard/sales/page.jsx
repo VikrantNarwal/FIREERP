@@ -1,37 +1,44 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Search, Filter } from 'lucide-react'
+import { Plus, Package, TrendingUp, Users, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 import api from '@/lib/api'
 
-export default function SalesDashboard() {
+export default function SimpleSalesDashboard() {
   const [orders, setOrders] = useState([])
   const [customers, setCustomers] = useState([])
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
   const [showNewOrderDialog, setShowNewOrderDialog] = useState(false)
+  const [showNewCustomerDialog, setShowNewCustomerDialog] = useState(false)
 
+  // New Order State
   const [newOrder, setNewOrder] = useState({
     customerId: '',
     productId: '',
-    fireplaceType: 'ELECTRICAL_FIREPLACE',
     variant: 'EF',
-    dimensions: { width: '', height: '', depth: '' },
-    flameColor: 'ORANGE',
-    soundOption: false,
-    rgbOption: false,
+    width: '',
+    height: '',
+    depth: '',
+    price: '',
     quantity: 1,
-    unitPrice: '',
-    discount: '',
     notes: ''
+  })
+
+  // New Customer State
+  const [newCustomer, setNewCustomer] = useState({
+    name: '',
+    phone: '',
+    address: '',
+    city: ''
   })
 
   useEffect(() => {
@@ -55,27 +62,53 @@ export default function SalesDashboard() {
     }
   }
 
-  const handleCreateOrder = async () => {
-    try {
-      const unitPrice = parseFloat(newOrder.unitPrice) || 0
-      const quantity = parseInt(newOrder.quantity) || 1
-      const discount = parseFloat(newOrder.discount) || 0
-      
-      const totalPrice = unitPrice * quantity
-      const finalPrice = totalPrice - discount
+  const handleCreateCustomer = async () => {
+    if (!newCustomer.name || !newCustomer.phone) {
+      toast.error('Name and phone are required')
+      return
+    }
 
+    try {
+      await api.createCustomer(newCustomer)
+      toast.success('Customer added successfully!')
+      setShowNewCustomerDialog(false)
+      loadData()
+      setNewCustomer({ name: '', phone: '', address: '', city: '' })
+    } catch (error) {
+      toast.error('Failed to add customer')
+    }
+  }
+
+  const handleCreateOrder = async () => {
+    if (!newOrder.customerId || !newOrder.productId || !newOrder.price) {
+      toast.error('Please fill customer, product, and price')
+      return
+    }
+
+    try {
+      const price = parseFloat(newOrder.price) || 0
+      const quantity = parseInt(newOrder.quantity) || 1
+      
       const orderData = {
-        ...newOrder,
-        quantity,
-        unitPrice,
-        discount,
-        totalPrice,
-        finalPrice,
+        customerId: newOrder.customerId,
+        productId: newOrder.productId,
+        fireplaceType: 'ELECTRICAL_FIREPLACE',
+        variant: newOrder.variant,
         dimensions: {
-          width: parseFloat(newOrder.dimensions.width) || 0,
-          height: parseFloat(newOrder.dimensions.height) || 0,
-          depth: parseFloat(newOrder.dimensions.depth) || 0
-        }
+          width: parseFloat(newOrder.width) || 0,
+          height: parseFloat(newOrder.height) || 0,
+          depth: parseFloat(newOrder.depth) || 0
+        },
+        flameColor: 'ORANGE',
+        soundOption: false,
+        rgbOption: false,
+        quantity,
+        unitPrice: price,
+        totalPrice: price * quantity,
+        finalPrice: price * quantity,
+        discount: 0,
+        priority: 'NORMAL',
+        notes: newOrder.notes
       }
 
       await api.createOrder(orderData)
@@ -86,15 +119,12 @@ export default function SalesDashboard() {
       setNewOrder({
         customerId: '',
         productId: '',
-        fireplaceType: 'ELECTRICAL_FIREPLACE',
         variant: 'EF',
-        dimensions: { width: '', height: '', depth: '' },
-        flameColor: 'ORANGE',
-        soundOption: false,
-        rgbOption: false,
+        width: '',
+        height: '',
+        depth: '',
+        price: '',
         quantity: 1,
-        unitPrice: '',
-        discount: '',
         notes: ''
       })
     } catch (error) {
@@ -102,238 +132,314 @@ export default function SalesDashboard() {
     }
   }
 
-  const getStatusColor = (status) => {
+  const getStatusBadge = (status) => {
     const colors = {
-      QUOTATION: 'bg-yellow-500',
-      APPROVED: 'bg-green-500',
-      IN_PRODUCTION: 'bg-blue-500',
-      QC_PENDING: 'bg-orange-500',
-      DISPATCHED: 'bg-purple-500',
-      DELIVERED: 'bg-green-600',
-      CLOSED: 'bg-gray-500'
+      QUOTATION: 'bg-yellow-600',
+      APPROVED: 'bg-blue-600',
+      IN_PRODUCTION: 'bg-purple-600',
+      DISPATCHED: 'bg-green-600',
+      DELIVERED: 'bg-green-700'
     }
-    return colors[status] || 'bg-gray-500'
+    return colors[status] || 'bg-gray-600'
   }
 
   if (loading) {
-    return <div className="text-white">Loading...</div>
+    return <div className="flex items-center justify-center h-full text-white">Loading...</div>
   }
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white">Sales Dashboard</h1>
-          <p className="text-slate-400 mt-1">Manage orders and quotations</p>
+          <h1 className="text-2xl font-bold text-white">Sales & Orders</h1>
+          <p className="text-slate-400 text-sm mt-1">Manage customer orders</p>
         </div>
-        <Dialog open={showNewOrderDialog} onOpenChange={setShowNewOrderDialog}>
-          <DialogTrigger asChild>
-            <Button className="bg-blue-600 hover:bg-blue-700">
-              <Plus className="w-4 h-4 mr-2" />
-              New Order
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-slate-900 text-white border-slate-700">
-            <DialogHeader>
-              <DialogTitle className="text-white">Create New Order</DialogTitle>
-              <DialogDescription className="text-slate-400">
-                Enter order details for a new fireplace
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
+        <div className="flex gap-3">
+          <Dialog open={showNewCustomerDialog} onOpenChange={setShowNewCustomerDialog}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="border-slate-700 text-white">
+                <Users className="w-4 h-4 mr-2" />
+                Add Customer
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="bg-slate-900 text-white border-slate-700">
+              <DialogHeader>
+                <DialogTitle className="text-white">Add New Customer</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label className="text-white">Customer</Label>
-                  <Select value={newOrder.customerId} onValueChange={(value) => setNewOrder({...newOrder, customerId: value})}>
-                    <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
-                      <SelectValue placeholder="Select customer" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-slate-800 border-slate-700">
-                      {customers.map(customer => (
-                        <SelectItem key={customer.id} value={customer.id} className="text-white">{customer.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>Customer Name *</Label>
+                  <Input
+                    placeholder="Enter customer name"
+                    value={newCustomer.name}
+                    onChange={(e) => setNewCustomer({...newCustomer, name: e.target.value})}
+                    className="bg-slate-800 border-slate-700 text-white"
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-white">Product</Label>
-                  <Select value={newOrder.productId} onValueChange={(value) => setNewOrder({...newOrder, productId: value})}>
-                    <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
-                      <SelectValue placeholder="Select product" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-slate-800 border-slate-700">
-                      {products.map(product => (
-                        <SelectItem key={product.id} value={product.id} className="text-white">{product.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>Phone Number *</Label>
+                  <Input
+                    placeholder="Enter phone number"
+                    value={newCustomer.phone}
+                    onChange={(e) => setNewCustomer({...newCustomer, phone: e.target.value})}
+                    className="bg-slate-800 border-slate-700 text-white"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Address</Label>
+                  <Input
+                    placeholder="Enter address"
+                    value={newCustomer.address}
+                    onChange={(e) => setNewCustomer({...newCustomer, address: e.target.value})}
+                    className="bg-slate-800 border-slate-700 text-white"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>City</Label>
+                  <Input
+                    placeholder="Enter city"
+                    value={newCustomer.city}
+                    onChange={(e) => setNewCustomer({...newCustomer, city: e.target.value})}
+                    className="bg-slate-800 border-slate-700 text-white"
+                  />
+                </div>
+                <div className="flex justify-end gap-3 pt-4">
+                  <Button variant="outline" onClick={() => setShowNewCustomerDialog(false)} className="border-slate-700">
+                    Cancel
+                  </Button>
+                  <Button onClick={handleCreateCustomer} className="bg-blue-600 hover:bg-blue-700">
+                    Add Customer
+                  </Button>
                 </div>
               </div>
+            </DialogContent>
+          </Dialog>
 
-              <div className="grid grid-cols-2 gap-4">
+          <Dialog open={showNewOrderDialog} onOpenChange={setShowNewOrderDialog}>
+            <DialogTrigger asChild>
+              <Button className="bg-blue-600 hover:bg-blue-700">
+                <Plus className="w-4 h-4 mr-2" />
+                New Order
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-xl bg-slate-900 text-white border-slate-700">
+              <DialogHeader>
+                <DialogTitle className="text-white">Create New Order</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Customer *</Label>
+                    <Select value={newOrder.customerId} onValueChange={(value) => setNewOrder({...newOrder, customerId: value})}>
+                      <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
+                        <SelectValue placeholder="Select customer" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-800 border-slate-700">
+                        {customers.map(customer => (
+                          <SelectItem key={customer.id} value={customer.id} className="text-white">
+                            {customer.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Product *</Label>
+                    <Select value={newOrder.productId} onValueChange={(value) => setNewOrder({...newOrder, productId: value})}>
+                      <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
+                        <SelectValue placeholder="Select product" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-800 border-slate-700">
+                        {products.map(product => (
+                          <SelectItem key={product.id} value={product.id} className="text-white">
+                            {product.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
                 <div className="space-y-2">
-                  <Label className="text-white">Variant</Label>
+                  <Label>Variant</Label>
                   <Select value={newOrder.variant} onValueChange={(value) => setNewOrder({...newOrder, variant: value})}>
                     <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-800 border-slate-700">
-                      <SelectItem value="EF" className="text-white">E.F. (Basic)</SelectItem>
-                      <SelectItem value="EFP" className="text-white">E.F.P. (Premium)</SelectItem>
-                      <SelectItem value="EFH" className="text-white">E.F.H. (with Heater)</SelectItem>
-                      <SelectItem value="EFHP" className="text-white">E.F.H.P. (Heater Premium)</SelectItem>
+                      <SelectItem value="EF" className="text-white">Basic</SelectItem>
+                      <SelectItem value="EFP" className="text-white">Premium</SelectItem>
+                      <SelectItem value="EFH" className="text-white">With Heater</SelectItem>
+                      <SelectItem value="EFHP" className="text-white">Premium + Heater</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-white">Flame Color</Label>
-                  <Select value={newOrder.flameColor} onValueChange={(value) => setNewOrder({...newOrder, flameColor: value})}>
-                    <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-slate-800 border-slate-700">
-                      <SelectItem value="ORANGE" className="text-white">Orange</SelectItem>
-                      <SelectItem value="BLUE" className="text-white">Blue</SelectItem>
-                      <SelectItem value="MULTICOLOR" className="text-white">Multicolor</SelectItem>
-                      <SelectItem value="RGB" className="text-white">RGB</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
 
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-white">Width (mm)</Label>
-                  <Input
-                    type="number"
-                    className="bg-slate-800 border-slate-700 text-white"
-                    value={newOrder.dimensions.width}
-                    onChange={(e) => setNewOrder({...newOrder, dimensions: {...newOrder.dimensions, width: e.target.value}})}
-                  />
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>Width (mm)</Label>
+                    <Input
+                      type="number"
+                      placeholder="1200"
+                      value={newOrder.width}
+                      onChange={(e) => setNewOrder({...newOrder, width: e.target.value})}
+                      className="bg-slate-800 border-slate-700 text-white"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Height (mm)</Label>
+                    <Input
+                      type="number"
+                      placeholder="800"
+                      value={newOrder.height}
+                      onChange={(e) => setNewOrder({...newOrder, height: e.target.value})}
+                      className="bg-slate-800 border-slate-700 text-white"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Depth (mm)</Label>
+                    <Input
+                      type="number"
+                      placeholder="300"
+                      value={newOrder.depth}
+                      onChange={(e) => setNewOrder({...newOrder, depth: e.target.value})}
+                      className="bg-slate-800 border-slate-700 text-white"
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-white">Height (mm)</Label>
-                  <Input
-                    type="number"
-                    className="bg-slate-800 border-slate-700 text-white"
-                    value={newOrder.dimensions.height}
-                    onChange={(e) => setNewOrder({...newOrder, dimensions: {...newOrder.dimensions, height: e.target.value}})}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-white">Depth (mm)</Label>
-                  <Input
-                    type="number"
-                    className="bg-slate-800 border-slate-700 text-white"
-                    value={newOrder.dimensions.depth}
-                    onChange={(e) => setNewOrder({...newOrder, dimensions: {...newOrder.dimensions, depth: e.target.value}})}
-                  />
-                </div>
-              </div>
 
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-white">Unit Price (₹)</Label>
-                  <Input
-                    type="number"
-                    className="bg-slate-800 border-slate-700 text-white"
-                    value={newOrder.unitPrice}
-                    onChange={(e) => setNewOrder({...newOrder, unitPrice: e.target.value})}
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Price (₹) *</Label>
+                    <Input
+                      type="number"
+                      placeholder="25000"
+                      value={newOrder.price}
+                      onChange={(e) => setNewOrder({...newOrder, price: e.target.value})}
+                      className="bg-slate-800 border-slate-700 text-white"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Quantity</Label>
+                    <Input
+                      type="number"
+                      value={newOrder.quantity}
+                      onChange={(e) => setNewOrder({...newOrder, quantity: e.target.value})}
+                      className="bg-slate-800 border-slate-700 text-white"
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-white">Quantity</Label>
-                  <Input
-                    type="number"
-                    className="bg-slate-800 border-slate-700 text-white"
-                    value={newOrder.quantity}
-                    onChange={(e) => setNewOrder({...newOrder, quantity: e.target.value || 1})}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-white">Discount (₹)</Label>
-                  <Input
-                    type="number"
-                    className="bg-slate-800 border-slate-700 text-white"
-                    value={newOrder.discount}
-                    onChange={(e) => setNewOrder({...newOrder, discount: e.target.value})}
-                  />
-                </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label className="text-white">Notes</Label>
-                <Textarea
-                  className="bg-slate-800 border-slate-700 text-white"
-                  value={newOrder.notes}
-                  onChange={(e) => setNewOrder({...newOrder, notes: e.target.value})}
-                  rows={3}
-                />
-              </div>
+                <div className="space-y-2">
+                  <Label>Notes</Label>
+                  <Textarea
+                    placeholder="Any special requirements..."
+                    value={newOrder.notes}
+                    onChange={(e) => setNewOrder({...newOrder, notes: e.target.value})}
+                    className="bg-slate-800 border-slate-700 text-white"
+                    rows={2}
+                  />
+                </div>
 
-              <div className="flex justify-end gap-3 pt-4">
-                <Button variant="outline" onClick={() => setShowNewOrderDialog(false)} className="border-slate-700 text-white">Cancel</Button>
-                <Button onClick={handleCreateOrder} className="bg-blue-600 hover:bg-blue-700">Create Order</Button>
+                <div className="flex justify-end gap-3 pt-4">
+                  <Button variant="outline" onClick={() => setShowNewOrderDialog(false)} className="border-slate-700">
+                    Cancel
+                  </Button>
+                  <Button onClick={handleCreateOrder} className="bg-blue-600 hover:bg-blue-700">
+                    Create Order
+                  </Button>
+                </div>
               </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-4 gap-4">
+        <Card className="bg-slate-900 border-slate-800">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm text-slate-400">Total Orders</CardTitle>
+              <Package className="w-4 h-4 text-blue-500" />
             </div>
-          </DialogContent>
-        </Dialog>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-white">{orders.length}</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-slate-900 border-slate-800">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm text-slate-400">In Production</CardTitle>
+              <TrendingUp className="w-4 h-4 text-purple-500" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-white">
+              {orders.filter(o => o.status === 'IN_PRODUCTION').length}
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-slate-900 border-slate-800">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm text-slate-400">Customers</CardTitle>
+              <Users className="w-4 h-4 text-green-500" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-white">{customers.length}</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-slate-900 border-slate-800">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm text-slate-400">Quotations</CardTitle>
+              <AlertCircle className="w-4 h-4 text-yellow-500" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-white">
+              {orders.filter(o => o.status === 'QUOTATION').length}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-slate-900 border-slate-800">
-          <CardHeader className="pb-3">
-            <CardDescription className="text-slate-400">Total Orders</CardDescription>
-            <CardTitle className="text-3xl text-white">{orders.length}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card className="bg-slate-900 border-slate-800">
-          <CardHeader className="pb-3">
-            <CardDescription className="text-slate-400">In Production</CardDescription>
-            <CardTitle className="text-3xl text-white">{orders.filter(o => o.status === 'IN_PRODUCTION').length}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card className="bg-slate-900 border-slate-800">
-          <CardHeader className="pb-3">
-            <CardDescription className="text-slate-400">Dispatched</CardDescription>
-            <CardTitle className="text-3xl text-white">{orders.filter(o => o.status === 'DISPATCHED').length}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card className="bg-slate-900 border-slate-800">
-          <CardHeader className="pb-3">
-            <CardDescription className="text-slate-400">Delivered</CardDescription>
-            <CardTitle className="text-3xl text-white">{orders.filter(o => o.status === 'DELIVERED').length}</CardTitle>
-          </CardHeader>
-        </Card>
-      </div>
-
+      {/* Orders List */}
       <Card className="bg-slate-900 border-slate-800">
         <CardHeader>
-          <CardTitle className="text-white">Recent Orders</CardTitle>
+          <CardTitle className="text-white">All Orders</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {orders.map(order => (
-              <div key={order.id} className="flex items-center justify-between p-4 bg-slate-800 rounded-lg">
-                <div>
-                  <p className="font-semibold text-white">{order.jobNumber}</p>
-                  <p className="text-sm text-slate-400">{order.customer?.name}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-white">{order.product?.name}</p>
-                  <p className="text-xs text-slate-400">{order.variant}</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-semibold text-white">₹{order.finalPrice?.toLocaleString()}</p>
-                  <p className="text-xs text-slate-400">Qty: {order.quantity}</p>
-                </div>
-                <div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium text-white ${getStatusColor(order.status)}`}>
-                    {order.status.replace('_', ' ')}
-                  </span>
-                </div>
+          <div className="space-y-3">
+            {orders.length === 0 ? (
+              <div className="text-center py-12 text-slate-400">
+                No orders yet. Click "New Order" to create one.
               </div>
-            ))}
+            ) : (
+              orders.map(order => (
+                <div key={order.id} className="flex items-center justify-between p-4 bg-slate-800 rounded-lg hover:bg-slate-750 transition-colors">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3">
+                      <span className="text-lg font-semibold text-white">{order.jobNumber}</span>
+                      <span className={`px-2 py-1 rounded text-xs text-white ${getStatusBadge(order.status)}`}>
+                        {order.status}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-sm text-slate-400">
+                      {order.customer?.name} • {order.product?.name}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-lg font-semibold text-white">₹{order.finalPrice?.toLocaleString()}</div>
+                    <div className="text-xs text-slate-400">Qty: {order.quantity}</div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>

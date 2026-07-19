@@ -1,265 +1,245 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { Play, CheckCircle, Clock } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import api from '@/lib/api'
-import { Clock, AlertCircle, CheckCircle, Play } from 'lucide-react'
 
-const PRODUCTION_STAGES = [
-  { key: 'DESIGN_APPROVED', label: 'Design Approved' },
-  { key: 'LASER_CUTTING', label: 'Laser Cutting' },
-  { key: 'BENDING', label: 'Bending' },
-  { key: 'WELDING', label: 'Welding' },
-  { key: 'GRINDING_BUFFING', label: 'Grinding/Buffing' },
-  { key: 'POWDER_COATING', label: 'Powder Coating' },
-  { key: 'INCOMING_QC', label: 'Incoming QC' },
-  { key: 'WOODEN_LOG_PREP', label: 'Wooden Log Prep' },
-  { key: 'FLAME_SHEET_PREP', label: 'Flame Sheet Prep' },
-  { key: 'LIGHT_ASSEMBLY', label: 'Light Assembly' },
-  { key: 'STEPPER_MOTOR_ASSEMBLY', label: 'Stepper Motor Assembly' },
-  { key: 'PCB_PREPARATION', label: 'PCB Preparation' },
-  { key: 'SPEAKER_ASSEMBLY', label: 'Speaker Assembly' },
-  { key: 'HEATER_ASSEMBLY', label: 'Heater Assembly' },
-  { key: 'MAIN_ASSEMBLY', label: 'Main Assembly' },
-  { key: 'FUNCTIONAL_TESTING', label: 'Functional Testing' },
-  { key: 'BURN_IN_TEST', label: 'Burn-in Test' },
-  { key: 'FINAL_QC', label: 'Final QC' },
-  { key: 'PACKAGING', label: 'Packaging' },
-  { key: 'DISPATCH_READY', label: 'Dispatch Ready' }
-]
-
-export default function ProductionDashboard() {
+export default function SimpleProductionTracker() {
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
-  const [selectedStage, setSelectedStage] = useState('ALL')
 
   useEffect(() => {
     loadOrders()
-    const interval = setInterval(loadOrders, 30000)
+    const interval = setInterval(loadOrders, 30000) // Refresh every 30 seconds
     return () => clearInterval(interval)
   }, [])
 
   const loadOrders = async () => {
     try {
-      const data = await api.getKanbanData()
+      const data = await api.getOrders({ status: 'IN_PRODUCTION,APPROVED' })
       setOrders(data)
     } catch (error) {
-      toast.error('Failed to load production data')
+      toast.error('Failed to load orders')
     } finally {
       setLoading(false)
     }
   }
 
-  const updateStageStatus = async (stageId, status) => {
+  const startStage = async (stageId) => {
     try {
-      await api.updateProductionStage(stageId, { status })
-      toast.success('Stage updated')
+      await api.updateProductionStage(stageId, { 
+        status: 'IN_PROGRESS',
+        actualStartDate: new Date().toISOString()
+      })
+      toast.success('Stage started')
       loadOrders()
     } catch (error) {
-      toast.error('Failed to update stage')
+      toast.error('Failed to start stage')
     }
   }
 
-  const getPriorityColor = (priority) => {
-    const colors = {
-      URGENT: 'bg-red-500',
-      HIGH: 'bg-orange-500',
-      NORMAL: 'bg-blue-500',
-      LOW: 'bg-gray-500'
-    }
-    return colors[priority] || 'bg-gray-500'
-  }
-
-  const getStageStatusIcon = (status) => {
-    switch (status) {
-      case 'COMPLETED':
-        return <CheckCircle className="w-4 h-4 text-green-500" />
-      case 'IN_PROGRESS':
-        return <Play className="w-4 h-4 text-blue-500" />
-      case 'PENDING':
-        return <Clock className="w-4 h-4 text-gray-500" />
-      case 'FAILED':
-        return <AlertCircle className="w-4 h-4 text-red-500" />
-      default:
-        return null
-    }
-  }
-
-  const getCurrentStage = (order) => {
-    if (!order.productionStages) return null
-    return order.productionStages.find(s => s.status === 'IN_PROGRESS') || 
-           order.productionStages.find(s => s.status === 'PENDING')
-  }
-
-  const filteredOrders = selectedStage === 'ALL' 
-    ? orders 
-    : orders.filter(order => {
-        const currentStage = getCurrentStage(order)
-        return currentStage?.stage === selectedStage
+  const completeStage = async (stageId) => {
+    try {
+      await api.updateProductionStage(stageId, { 
+        status: 'COMPLETED',
+        actualEndDate: new Date().toISOString()
       })
+      toast.success('Stage completed!')
+      loadOrders()
+    } catch (error) {
+      toast.error('Failed to complete stage')
+    }
+  }
+
+  const getStageIcon = (status) => {
+    if (status === 'COMPLETED') return <CheckCircle className="w-4 h-4 text-green-500" />
+    if (status === 'IN_PROGRESS') return <Play className="w-4 h-4 text-blue-500" />
+    return <Clock className="w-4 h-4 text-gray-500" />
+  }
+
+  const stageName = (stage) => {
+    const names = {
+      DESIGN_APPROVED: 'Design',
+      LASER_CUTTING: 'Cutting',
+      BENDING: 'Bending',
+      WELDING: 'Welding',
+      GRINDING_BUFFING: 'Finishing',
+      POWDER_COATING: 'Coating',
+      INCOMING_QC: 'QC Check',
+      WOODEN_LOG_PREP: 'Wood Prep',
+      FLAME_SHEET_PREP: 'Flame Prep',
+      LIGHT_ASSEMBLY: 'Lights',
+      STEPPER_MOTOR_ASSEMBLY: 'Motor',
+      PCB_PREPARATION: 'Electronics',
+      SPEAKER_ASSEMBLY: 'Speaker',
+      HEATER_ASSEMBLY: 'Heater',
+      MAIN_ASSEMBLY: 'Assembly',
+      FUNCTIONAL_TESTING: 'Testing',
+      BURN_IN_TEST: 'Burn Test',
+      FINAL_QC: 'Final Check',
+      PACKAGING: 'Packing',
+      DISPATCH_READY: 'Ready'
+    }
+    return names[stage] || stage
+  }
 
   if (loading) {
-    return <div className="text-white">Loading production data...</div>
+    return <div className="text-white">Loading...</div>
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-white">Production Kanban Board</h1>
-          <p className="text-slate-400 mt-1">Real-time production tracking</p>
-        </div>
-        <div className="flex items-center gap-4">
-          <Select value={selectedStage} onValueChange={setSelectedStage}>
-            <SelectTrigger className="w-64 bg-slate-800 border-slate-700 text-white">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="bg-slate-800 border-slate-700">
-              <SelectItem value="ALL" className="text-white">All Stages</SelectItem>
-              {PRODUCTION_STAGES.map(stage => (
-                <SelectItem key={stage.key} value={stage.key} className="text-white">
-                  {stage.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button onClick={loadOrders} variant="outline" className="border-slate-700 text-white">
-            Refresh
-          </Button>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold text-white">Production Tracker</h1>
+        <p className="text-slate-400 text-sm mt-1">Track order progress</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <Card className="bg-slate-900 border-slate-800">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm text-slate-400">In Production</CardTitle>
-            <div className="text-3xl font-bold text-white">{orders.length}</div>
           </CardHeader>
-        </Card>
-        <Card className="bg-slate-900 border-slate-800">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm text-slate-400">Urgent Orders</CardTitle>
-            <div className="text-3xl font-bold text-red-500">
-              {orders.filter(o => o.priority === 'URGENT').length}
-            </div>
-          </CardHeader>
-        </Card>
-        <Card className="bg-slate-900 border-slate-800">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm text-slate-400">In Progress</CardTitle>
-            <div className="text-3xl font-bold text-blue-500">
-              {orders.filter(o => o.productionStages?.some(s => s.status === 'IN_PROGRESS')).length}
-            </div>
-          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-white">{orders.length}</div>
+          </CardContent>
         </Card>
         <Card className="bg-slate-900 border-slate-800">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm text-slate-400">Completed Today</CardTitle>
-            <div className="text-3xl font-bold text-green-500">
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-500">
               {orders.filter(o => o.productionStages?.some(s => 
                 s.status === 'COMPLETED' && 
                 new Date(s.actualEndDate).toDateString() === new Date().toDateString()
               )).length}
             </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-slate-900 border-slate-800">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm text-slate-400">In Progress Now</CardTitle>
           </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-500">
+              {orders.filter(o => o.productionStages?.some(s => s.status === 'IN_PROGRESS')).length}
+            </div>
+          </CardContent>
         </Card>
       </div>
 
       <div className="space-y-4">
-        {filteredOrders.map(order => {
-          const currentStage = getCurrentStage(order)
-          const completedStages = order.productionStages?.filter(s => s.status === 'COMPLETED').length || 0
-          const totalStages = order.productionStages?.length || 0
-          const progress = totalStages > 0 ? (completedStages / totalStages) * 100 : 0
-
-          return (
-            <Card key={order.id} className="bg-slate-900 border-slate-800 hover:border-slate-700 transition-colors">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-xl font-bold text-white">{order.jobNumber}</h3>
-                      <Badge className={`${getPriorityColor(order.priority)} text-white border-0`}>
-                        {order.priority}
-                      </Badge>
-                      {currentStage && (
-                        <Badge variant="outline" className="border-blue-500 text-blue-400">
-                          {PRODUCTION_STAGES.find(s => s.key === currentStage.stage)?.label}
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="text-sm text-slate-400 space-y-1">
-                      <p><span className="text-slate-500">Customer:</span> {order.customer?.name}</p>
-                      <p><span className="text-slate-500">Product:</span> {order.product?.name} - {order.variant}</p>
-                      <p><span className="text-slate-500">Promised Date:</span> {order.promisedDate ? new Date(order.promisedDate).toLocaleDateString() : 'Not set'}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-3xl font-bold text-white">{Math.round(progress)}%</div>
-                    <div className="text-xs text-slate-400">Complete</div>
-                  </div>
-                </div>
-
-                <div className="w-full bg-slate-800 rounded-full h-2 mb-4">
-                  <div 
-                    className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-
-                <div className="grid grid-cols-5 gap-2">
-                  {order.productionStages?.slice(0, 10).map(stage => (
-                    <div key={stage.id} className="flex items-center gap-2 p-2 bg-slate-800 rounded">
-                      {getStageStatusIcon(stage.status)}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs text-slate-400 truncate">
-                          {PRODUCTION_STAGES.find(s => s.key === stage.stage)?.label}
-                        </p>
-                      </div>
-                      {stage.status === 'IN_PROGRESS' && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => updateStageStatus(stage.id, 'COMPLETED')}
-                          className="h-6 px-2 text-xs text-green-400 hover:text-green-300"
-                        >
-                          Complete
-                        </Button>
-                      )}
-                      {stage.status === 'PENDING' && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => updateStageStatus(stage.id, 'IN_PROGRESS')}
-                          className="h-6 px-2 text-xs text-blue-400 hover:text-blue-300"
-                        >
-                          Start
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {order.productionStages && order.productionStages.length > 10 && (
-                  <p className="text-xs text-slate-500 mt-2">
-                    +{order.productionStages.length - 10} more stages
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          )
-        })}
-
-        {filteredOrders.length === 0 && (
+        {orders.length === 0 ? (
           <Card className="bg-slate-900 border-slate-800">
-            <CardContent className="p-12 text-center">
-              <p className="text-slate-400">No orders in production</p>
+            <CardContent className="p-12 text-center text-slate-400">
+              No orders in production yet
             </CardContent>
           </Card>
+        ) : (
+          orders.map(order => {
+            const stages = order.productionStages || []
+            const completed = stages.filter(s => s.status === 'COMPLETED').length
+            const total = stages.length
+            const progress = total > 0 ? Math.round((completed / total) * 100) : 0
+            const currentStage = stages.find(s => s.status === 'IN_PROGRESS') || stages.find(s => s.status === 'PENDING')
+
+            return (
+              <Card key={order.id} className="bg-slate-900 border-slate-800">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <div className="flex items-center gap-3 mb-2">
+                        <h3 className="text-xl font-bold text-white">{order.jobNumber}</h3>
+                        {order.priority === 'URGENT' && (
+                          <Badge className="bg-red-600 text-white">URGENT</Badge>
+                        )}
+                        {order.priority === 'HIGH' && (
+                          <Badge className="bg-orange-600 text-white">HIGH</Badge>
+                        )}
+                      </div>
+                      <div className="text-sm text-slate-400">
+                        <span className="font-medium text-slate-300">{order.customer?.name}</span>
+                        <span className="mx-2">•</span>
+                        <span>{order.product?.name}</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-3xl font-bold text-white">{progress}%</div>
+                      <div className="text-xs text-slate-400">{completed} of {total}</div>
+                    </div>
+                  </div>
+
+                  <div className="mb-4">
+                    <div className="w-full bg-slate-800 rounded-full h-3">
+                      <div 
+                        className="bg-gradient-to-r from-blue-500 to-green-500 h-3 rounded-full transition-all duration-500"
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {currentStage && (
+                    <div className="p-4 bg-slate-800 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          {getStageIcon(currentStage.status)}
+                          <div>
+                            <div className="text-white font-semibold">{stageName(currentStage.stage)}</div>
+                            <div className="text-xs text-slate-400">
+                              {currentStage.status === 'IN_PROGRESS' ? 'Working on it...' : 'Ready to start'}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          {currentStage.status === 'PENDING' && (
+                            <Button 
+                              size="sm"
+                              onClick={() => startStage(currentStage.id)}
+                              className="bg-blue-600 hover:bg-blue-700"
+                            >
+                              Start
+                            </Button>
+                          )}
+                          {currentStage.status === 'IN_PROGRESS' && (
+                            <Button 
+                              size="sm"
+                              onClick={() => completeStage(currentStage.id)}
+                              className="bg-green-600 hover:bg-green-700"
+                            >
+                              Complete
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mt-4 pt-4 border-t border-slate-800">
+                    <div className="text-xs text-slate-500 mb-2">Recent Stages:</div>
+                    <div className="flex flex-wrap gap-2">
+                      {stages.slice(0, 8).map(stage => (
+                        <div 
+                          key={stage.id}
+                          className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${
+                            stage.status === 'COMPLETED' ? 'bg-green-900 text-green-300' :
+                            stage.status === 'IN_PROGRESS' ? 'bg-blue-900 text-blue-300' :
+                            'bg-slate-800 text-slate-400'
+                          }`}
+                        >
+                          {getStageIcon(stage.status)}
+                          <span>{stageName(stage.stage)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })
         )}
       </div>
     </div>

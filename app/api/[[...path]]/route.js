@@ -913,6 +913,53 @@ async function handleRoute(request, { params }) {
       return handleCORS(NextResponse.json(users))
     }
 
+    // Update user profile - PUT /api/users/:id
+    if (route.match(/^\/users\/[^\/]+$/) && method === 'PUT') {
+      const user = verifyAuth(request)
+      if (!user) {
+        return handleCORS(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }))
+      }
+
+      const userId = path[1]
+      const body = await request.json()
+
+      // Users can only update their own profile unless they're admin
+      if (userId !== user.id && !['CEO', 'ADMIN'].includes(user.role)) {
+        return handleCORS(NextResponse.json({ error: 'Forbidden' }, { status: 403 }))
+      }
+
+      const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: {
+          firstName: body.firstName,
+          lastName: body.lastName,
+          phone: body.phone
+        },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          department: true,
+          phone: true,
+          status: true
+        }
+      })
+
+      await prisma.auditLog.create({
+        data: {
+          userId: user.id,
+          action: 'UPDATE',
+          resource: 'User',
+          resourceId: userId,
+          changes: body
+        }
+      })
+
+      return handleCORS(NextResponse.json(updatedUser))
+    }
+
     // ==================== PRODUCT ROUTES ====================
 
     // Get all products - GET /api/products

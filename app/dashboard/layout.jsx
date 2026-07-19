@@ -50,13 +50,38 @@ export default function DashboardLayout({ children }) {
   }
 
   const roleNav = {
-    CEO: [{ label: 'Dashboard', icon: BarChart3, href: '/dashboard/ceo' }],
-    SALES: [{ label: 'Orders', icon: Package, href: '/dashboard/sales' }],
-    PRODUCTION: [{ label: 'Production', icon: Boxes, href: '/dashboard/production' }],
-    QC: [{ label: 'Quality Control', icon: ClipboardCheck, href: '/dashboard/qc' }],
-    DISPATCH: [{ label: 'Dispatch', icon: Truck, href: '/dashboard/dispatch' }],
-    INVENTORY: [{ label: 'Inventory', icon: Package, href: '/dashboard/inventory' }],
-    ADMIN: [{ label: 'Admin', icon: Settings, href: '/dashboard/admin' }]
+    CEO: [
+      { label: 'Dashboard', icon: BarChart3, href: '/dashboard/ceo' },
+      { label: 'Profile', icon: Users, href: '/dashboard/profile' }
+    ],
+    SALES: [
+      { label: 'Orders', icon: Package, href: '/dashboard/sales' },
+      { label: 'Profile', icon: Users, href: '/dashboard/profile' }
+    ],
+    DESIGN: [
+      { label: 'Design', icon: Boxes, href: '/dashboard/design' },
+      { label: 'Profile', icon: Users, href: '/dashboard/profile' }
+    ],
+    PRODUCTION: [
+      { label: 'Production', icon: Boxes, href: '/dashboard/production' },
+      { label: 'Profile', icon: Users, href: '/dashboard/profile' }
+    ],
+    QC: [
+      { label: 'Quality Control', icon: ClipboardCheck, href: '/dashboard/qc' },
+      { label: 'Profile', icon: Users, href: '/dashboard/profile' }
+    ],
+    DISPATCH: [
+      { label: 'Dispatch', icon: Truck, href: '/dashboard/dispatch' },
+      { label: 'Profile', icon: Users, href: '/dashboard/profile' }
+    ],
+    INVENTORY: [
+      { label: 'Inventory', icon: Package, href: '/dashboard/inventory' },
+      { label: 'Profile', icon: Users, href: '/dashboard/profile' }
+    ],
+    ADMIN: [
+      { label: 'Admin', icon: Settings, href: '/dashboard/admin' },
+      { label: 'Profile', icon: Users, href: '/dashboard/profile' }
+    ]
   }
 
   const navItems = roleNav[user?.role] || []
