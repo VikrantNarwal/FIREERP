@@ -67,7 +67,7 @@ export default function DashboardLayout({ children }) {
       { label: 'Profile', icon: Users, href: '/dashboard/profile' }
     ],
     QC: [
-      { label: 'Quality Control', icon: ClipboardCheck, href: '/dashboard/qc' },
+      { label: 'Quality', icon: ClipboardCheck, href: '/dashboard/qc' },
       { label: 'Profile', icon: Users, href: '/dashboard/profile' }
     ],
     DISPATCH: [
@@ -76,6 +76,18 @@ export default function DashboardLayout({ children }) {
     ],
     INVENTORY: [
       { label: 'Inventory', icon: Package, href: '/dashboard/inventory' },
+      { label: 'Profile', icon: Users, href: '/dashboard/profile' }
+    ],
+    PROCUREMENT: [
+      { label: 'Procurement', icon: Package, href: '/dashboard/procurement' },
+      { label: 'Profile', icon: Users, href: '/dashboard/profile' }
+    ],
+    ELECTRONICS: [
+      { label: 'Electronics', icon: Settings, href: '/dashboard/electronics' },
+      { label: 'Profile', icon: Users, href: '/dashboard/profile' }
+    ],
+    SERVICE: [
+      { label: 'Service', icon: Settings, href: '/dashboard/service' },
       { label: 'Profile', icon: Users, href: '/dashboard/profile' }
     ],
     ADMIN: [
