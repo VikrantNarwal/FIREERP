@@ -37,6 +37,7 @@ export default function SalesDashboard() {
     depth: '',
     price: '',
     quantity: 1,
+    promisedDate: '',
     notes: ''
   })
 
@@ -108,6 +109,11 @@ export default function SalesDashboard() {
       return
     }
 
+    if (!newOrder.promisedDate) {
+      toast.error('Please select promised delivery date')
+      return
+    }
+
     try {
       const price = parseFloat(newOrder.price) || 0
       const quantity = parseInt(newOrder.quantity) || 1
@@ -126,6 +132,7 @@ export default function SalesDashboard() {
         unitPrice: price,
         totalPrice: price * quantity,
         finalPrice: price * quantity,
+        promisedDate: new Date(newOrder.promisedDate).toISOString(),
         notes: newOrder.notes
       }
 
@@ -142,6 +149,7 @@ export default function SalesDashboard() {
         depth: '',
         price: '',
         quantity: 1,
+        promisedDate: '',
         notes: ''
       })
     } catch (error) {
@@ -392,6 +400,16 @@ export default function SalesDashboard() {
                     value={newOrder.price}
                     onChange={(e) => setNewOrder({ ...newOrder, price: e.target.value })}
                     className="bg-slate-800 border-slate-700"
+                  />
+                </div>
+
+                <div>
+                  <Label>Promised Delivery Date *</Label>
+                  <Input
+                    type="date"
+                    value={newOrder.promisedDate}
+                    onChange={(e) => setNewOrder({ ...newOrder, promisedDate: e.target.value })}
+                    className="bg-slate-800 border-slate-700 text-white"
                   />
                 </div>
 

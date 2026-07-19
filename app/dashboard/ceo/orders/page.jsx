@@ -19,7 +19,9 @@ export default function CEOOrders() {
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [showDetailDialog, setShowDetailDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [showUrgentDialog, setShowUrgentDialog] = useState(false)
   const [orderToDelete, setOrderToDelete] = useState(null)
+  const [orderToMarkUrgent, setOrderToMarkUrgent] = useState(null)
 
   useEffect(() => {
     loadOrders()
@@ -47,6 +49,22 @@ export default function CEOOrders() {
       loadOrders()
     } catch (error) {
       toast.error('Failed to delete order')
+    }
+  }
+
+  const handleMarkUrgent = async () => {
+    if (!orderToMarkUrgent) return
+
+    try {
+      await api.updateOrder(orderToMarkUrgent.id, {
+        priority: 'URGENT'
+      })
+      toast.success(`Order ${orderToMarkUrgent.jobNumber} marked as VERY URGENT!`)
+      setShowUrgentDialog(false)
+      setOrderToMarkUrgent(null)
+      loadOrders()
+    } catch (error) {
+      toast.error('Failed to mark order as urgent')
     }
   }
 
@@ -198,6 +216,18 @@ export default function CEOOrders() {
                     <Button
                       size="sm"
                       variant="outline"
+                      className="gap-2 border-orange-500 text-orange-400 hover:bg-orange-500/10"
+                      onClick={() => {
+                        setOrderToMarkUrgent(order)
+                        setShowUrgentDialog(true)
+                      }}
+                    >
+                      <AlertTriangle className="w-4 h-4" />
+                      Mark URGENT
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
                       className="gap-2"
                       onClick={() => {
                         setSelectedOrder(order)
@@ -277,6 +307,41 @@ export default function CEOOrders() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Mark Urgent Confirmation Dialog */}
+      <AlertDialog open={showUrgentDialog} onOpenChange={setShowUrgentDialog}>
+        <AlertDialogContent className="bg-slate-900 border-slate-800 text-white">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-12 h-12 rounded-full bg-orange-500/20 flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6 text-orange-500" />
+              </div>
+              <AlertDialogTitle>Mark as VERY URGENT</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription asChild>
+              <div className="text-slate-400">
+                <p>Mark order <span className="font-semibold text-white">{orderToMarkUrgent?.jobNumber}</span> as VERY URGENT?</p>
+                <p className="mt-3">This will:</p>
+                <ul className="list-disc list-inside mt-2 space-y-1">
+                  <li>Show order at the TOP of all dashboards</li>
+                  <li>Alert ALL departments (Production, QC, Design, etc.)</li>
+                  <li>Add red "VERY URGENT" badge visible everywhere</li>
+                  <li>Require immediate attention from all teams</li>
+                </ul>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-slate-800 border-slate-700">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleMarkUrgent}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              Mark as VERY URGENT
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

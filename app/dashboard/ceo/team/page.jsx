@@ -21,9 +21,10 @@ export default function TeamDirectory() {
   const loadUsers = async () => {
     try {
       const data = await api.getUsers()
-      setUsers(data)
+      setUsers(Array.isArray(data) ? data : [])
     } catch (error) {
       toast.error('Failed to load team directory')
+      setUsers([])
     } finally {
       setLoading(false)
     }
