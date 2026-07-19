@@ -543,6 +543,35 @@ async function handleRoute(request, { params }) {
       return handleCORS(NextResponse.json(order))
     }
 
+    // Soft delete order - DELETE /api/orders/:id (CEO only)
+    if (route.match(/^\/orders\/[^\/]+$/) && method === 'DELETE') {
+      const user = verifyAuth(request)
+      const denied = requireRole(user, ['CEO', 'ADMIN'])
+      if (denied) return handleCORS(denied)
+
+      const orderId = path[1]
+
+      const order = await prisma.order.update({
+        where: { id: orderId },
+        data: { 
+          deletedAt: new Date(),
+          status: 'CANCELLED'
+        }
+      })
+
+      await prisma.auditLog.create({
+        data: {
+          userId: user.id,
+          action: 'DELETE',
+          resource: 'Order',
+          resourceId: order.id,
+          changes: { deletedAt: order.deletedAt }
+        }
+      })
+
+      return handleCORS(NextResponse.json({ message: 'Order deleted successfully', order }))
+    }
+
     // ==================== PRODUCTION STAGE ROUTES ====================
 
     // Get production stages for order - GET /api/orders/:id/stages
@@ -871,7 +900,9 @@ async function handleRoute(request, { params }) {
         todayDispatches,
         pendingQC,
         totalCustomers,
-        lowStockComponents
+        lowStockComponents,
+        criticalAlerts,
+        openAlerts
       ] = await Promise.all([
         prisma.order.count({ where: { deletedAt: null } }),
         prisma.order.count({
@@ -903,6 +934,17 @@ async function handleRoute(request, { params }) {
             currentStock: { lte: prisma.component.fields.reorderLevel },
             deletedAt: null
           }
+        }),
+        prisma.criticalAlert.count({
+          where: {
+            severity: { in: ['HIGH', 'CRITICAL'] },
+            status: { in: ['OPEN', 'ACKNOWLEDGED', 'IN_PROGRESS'] }
+          }
+        }),
+        prisma.criticalAlert.count({
+          where: {
+            status: { in: ['OPEN', 'ACKNOWLEDGED', 'IN_PROGRESS'] }
+          }
         })
       ])
 
@@ -913,7 +955,9 @@ async function handleRoute(request, { params }) {
         todayDispatches,
         pendingQC,
         totalCustomers,
-        lowStockComponents
+        lowStockComponents,
+        criticalAlerts,
+        openAlerts
       }
 
       return handleCORS(NextResponse.json(stats))
@@ -1016,6 +1060,387 @@ async function handleRoute(request, { params }) {
       })
 
       return handleCORS(NextResponse.json(products))
+    }
+
+    // ==================== PAYMENT ROUTES ====================
+
+    // Get payments - GET /api/payments
+    if (route === '/payments' && method === 'GET') {
+      const user = verifyAuth(request)
+      if (!user) {
+        return handleCORS(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }))
+      }
+
+      const url = new URL(request.url)
+      const orderId = url.searchParams.get('orderId')
+
+      const where = {}
+      if (orderId) where.orderId = orderId
+
+      const payments = await prisma.payment.findMany({
+        where,
+        include: {
+          order: {
+            select: {
+              id: true,
+              jobNumber: true,
+              customer: {
+                select: {
+                  name: true
+                }
+              }
+            }
+          },
+          recordedBy: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true
+            }
+          }
+        },
+        orderBy: { paymentDate: 'desc' }
+      })
+
+      return handleCORS(NextResponse.json(payments))
+    }
+
+    // Create payment - POST /api/payments
+    if (route === '/payments' && method === 'POST') {
+      const user = verifyAuth(request)
+      const denied = requireRole(user, ['SALES', 'CEO', 'ADMIN'])
+      if (denied) return handleCORS(denied)
+
+      const body = await request.json()
+      
+      const payment = await prisma.payment.create({
+        data: {
+          orderId: body.orderId,
+          amount: body.amount,
+          paymentType: body.paymentType,
+          paymentMode: body.paymentMode,
+          transactionRef: body.transactionRef,
+          notes: body.notes,
+          paymentDate: body.paymentDate ? new Date(body.paymentDate) : new Date(),
+          recordedById: user.id
+        },
+        include: {
+          order: {
+            select: {
+              id: true,
+              jobNumber: true
+            }
+          },
+          recordedBy: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true
+            }
+          }
+        }
+      })
+
+      // Update order payment fields if this is an advance payment
+      if (body.paymentType === 'ADVANCE') {
+        await prisma.order.update({
+          where: { id: body.orderId },
+          data: {
+            advanceAmountPaid: body.amount,
+            advanceDatePaid: payment.paymentDate
+          }
+        })
+      }
+
+      // Update balance due
+      const order = await prisma.order.findUnique({
+        where: { id: body.orderId }
+      })
+      
+      if (order && order.finalPrice) {
+        const totalPaid = await prisma.payment.aggregate({
+          where: { orderId: body.orderId },
+          _sum: { amount: true }
+        })
+        
+        const balanceDue = order.finalPrice - (totalPaid._sum.amount || 0)
+        
+        await prisma.order.update({
+          where: { id: body.orderId },
+          data: { balanceDue }
+        })
+      }
+
+      await prisma.auditLog.create({
+        data: {
+          userId: user.id,
+          action: 'CREATE',
+          resource: 'Payment',
+          resourceId: payment.id,
+          changes: body
+        }
+      })
+
+      return handleCORS(NextResponse.json(payment, { status: 201 }))
+    }
+
+    // ==================== CRITICAL ALERTS ROUTES ====================
+
+    // Get alerts - GET /api/alerts
+    if (route === '/alerts' && method === 'GET') {
+      const user = verifyAuth(request)
+      if (!user) {
+        return handleCORS(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }))
+      }
+
+      const url = new URL(request.url)
+      const status = url.searchParams.get('status')
+      const severity = url.searchParams.get('severity')
+      const orderId = url.searchParams.get('orderId')
+
+      const where = {}
+      if (status) where.status = status
+      if (severity) where.severity = severity
+      if (orderId) where.orderId = orderId
+
+      const alerts = await prisma.criticalAlert.findMany({
+        where,
+        include: {
+          order: {
+            select: {
+              id: true,
+              jobNumber: true,
+              customer: {
+                select: {
+                  name: true
+                }
+              }
+            }
+          },
+          raisedBy: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              role: true
+            }
+          },
+          resolvedBy: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true
+            }
+          }
+        },
+        orderBy: [
+          { severity: 'desc' },
+          { createdAt: 'desc' }
+        ]
+      })
+
+      return handleCORS(NextResponse.json(alerts))
+    }
+
+    // Create alert - POST /api/alerts
+    if (route === '/alerts' && method === 'POST') {
+      const user = verifyAuth(request)
+      if (!user) {
+        return handleCORS(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }))
+      }
+
+      const body = await request.json()
+
+      const alert = await prisma.criticalAlert.create({
+        data: {
+          orderId: body.orderId,
+          raisedByUserId: user.id,
+          raisedByRole: user.role,
+          category: body.category,
+          message: body.message,
+          details: body.details,
+          severity: body.severity,
+          status: 'OPEN'
+        },
+        include: {
+          order: {
+            select: {
+              id: true,
+              jobNumber: true
+            }
+          },
+          raisedBy: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              role: true
+            }
+          }
+        }
+      })
+
+      await prisma.auditLog.create({
+        data: {
+          userId: user.id,
+          action: 'CREATE',
+          resource: 'CriticalAlert',
+          resourceId: alert.id,
+          changes: body
+        }
+      })
+
+      return handleCORS(NextResponse.json(alert, { status: 201 }))
+    }
+
+    // Update alert (resolve/acknowledge) - PUT /api/alerts/:id
+    if (route.match(/^\/alerts\/[^\/]+$/) && method === 'PUT') {
+      const user = verifyAuth(request)
+      if (!user) {
+        return handleCORS(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }))
+      }
+
+      const alertId = path[1]
+      const body = await request.json()
+
+      const updateData = {
+        ...body
+      }
+
+      // If resolving, add resolved metadata
+      if (body.status === 'RESOLVED' || body.status === 'CLOSED') {
+        updateData.resolvedAt = new Date()
+        updateData.resolvedByUserId = user.id
+      }
+
+      const alert = await prisma.criticalAlert.update({
+        where: { id: alertId },
+        data: updateData,
+        include: {
+          order: {
+            select: {
+              id: true,
+              jobNumber: true
+            }
+          },
+          raisedBy: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              role: true
+            }
+          },
+          resolvedBy: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true
+            }
+          }
+        }
+      })
+
+      await prisma.auditLog.create({
+        data: {
+          userId: user.id,
+          action: 'UPDATE',
+          resource: 'CriticalAlert',
+          resourceId: alertId,
+          changes: body
+        }
+      })
+
+      return handleCORS(NextResponse.json(alert))
+    }
+
+    // ==================== DOCUMENT UPLOAD ROUTE ====================
+
+    // Upload document - POST /api/documents/upload
+    if (route === '/documents/upload' && method === 'POST') {
+      const user = verifyAuth(request)
+      const denied = requireRole(user, ['SALES', 'DESIGN', 'PRODUCTION', 'QC', 'CEO', 'ADMIN'])
+      if (denied) return handleCORS(denied)
+
+      const body = await request.json()
+
+      const document = await prisma.document.create({
+        data: {
+          orderId: body.orderId,
+          type: body.type,
+          fileName: body.fileName,
+          fileUrl: body.fileUrl,
+          fileSize: body.fileSize,
+          mimeType: body.mimeType,
+          uploadedById: user.id,
+          notes: body.notes
+        },
+        include: {
+          order: {
+            select: {
+              id: true,
+              jobNumber: true
+            }
+          },
+          uploadedBy: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true
+            }
+          }
+        }
+      })
+
+      await prisma.auditLog.create({
+        data: {
+          userId: user.id,
+          action: 'CREATE',
+          resource: 'Document',
+          resourceId: document.id,
+          changes: body
+        }
+      })
+
+      return handleCORS(NextResponse.json(document, { status: 201 }))
+    }
+
+    // Get documents - GET /api/documents
+    if (route === '/documents' && method === 'GET') {
+      const user = verifyAuth(request)
+      if (!user) {
+        return handleCORS(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }))
+      }
+
+      const url = new URL(request.url)
+      const orderId = url.searchParams.get('orderId')
+      const type = url.searchParams.get('type')
+
+      const where = {}
+      if (orderId) where.orderId = orderId
+      if (type) where.type = type
+
+      const documents = await prisma.document.findMany({
+        where,
+        include: {
+          order: {
+            select: {
+              id: true,
+              jobNumber: true
+            }
+          },
+          uploadedBy: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      })
+
+      return handleCORS(NextResponse.json(documents))
     }
 
     // Root endpoint - GET /api/

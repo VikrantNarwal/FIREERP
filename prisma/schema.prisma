@@ -59,6 +59,9 @@ model User {
   auditLogs         AuditLog[]
   documents         Document[]
   inventoryTransactions InventoryTransaction[]
+  raisedAlerts      CriticalAlert[]     @relation("AlertRaisedBy")
+  resolvedAlerts    CriticalAlert[]     @relation("AlertResolvedBy")
+  paymentsRecorded  Payment[]
   
   @@index([email])
   @@index([role])
@@ -326,6 +329,11 @@ model Order {
   discount          Float?
   finalPrice        Float?
   
+  // Payment Tracking
+  advanceAmountPaid Float?              @default(0)
+  advanceDatePaid   DateTime?
+  balanceDue        Float?
+  
   // Dates
   orderDate         DateTime            @default(now())
   requiredDate      DateTime?
@@ -364,6 +372,8 @@ model Order {
   serialNumbers     SerialNumber[]
   inventoryTransactions InventoryTransaction[]
   ncrs              NCR[]
+  payments          Payment[]
+  criticalAlerts    CriticalAlert[]
   
   @@index([jobNumber])
   @@index([status])
@@ -581,6 +591,7 @@ enum DocumentType {
   INSTALLATION_MANUAL
   CUSTOMER_APPROVAL
   DESIGN_APPROVAL
+  QUOTATION
   OTHER
 }
 
@@ -605,6 +616,88 @@ model Document {
   @@index([orderId])
   @@index([type])
   @@map("documents")
+}
+
+// ==================== PAYMENT TRACKING ====================
+
+model Payment {
+  id                String      @id @default(uuid())
+  orderId           String
+  amount            Float
+  paymentType       String      // ADVANCE, BALANCE, FULL
+  paymentMode       String?     // CASH, CARD, UPI, BANK_TRANSFER, CHEQUE
+  transactionRef    String?
+  notes             String?
+  recordedById      String
+  paymentDate       DateTime
+  
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  order             Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  recordedBy        User        @relation(fields: [recordedById], references: [id])
+  
+  @@index([orderId])
+  @@index([paymentDate])
+  @@map("payments")
+}
+
+// ==================== CRITICAL ALERTS SYSTEM ====================
+
+enum AlertCategory {
+  PRODUCTION_DELAY
+  QUALITY_ISSUE
+  INVENTORY_SHORTAGE
+  CUSTOMER_ESCALATION
+  EQUIPMENT_FAILURE
+  SAFETY_CONCERN
+  DESIGN_REVISION
+  DELIVERY_RISK
+  PAYMENT_PENDING
+  OTHER
+}
+
+enum AlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+model CriticalAlert {
+  id                String          @id @default(uuid())
+  orderId           String?
+  raisedByUserId    String
+  raisedByRole      String
+  category          AlertCategory
+  message           String
+  details           String?
+  severity          AlertSeverity
+  status            AlertStatus     @default(OPEN)
+  resolvedAt        DateTime?
+  resolvedByUserId  String?
+  resolutionNotes   String?
+  
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  
+  order             Order?          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  raisedBy          User            @relation("AlertRaisedBy", fields: [raisedByUserId], references: [id])
+  resolvedBy        User?           @relation("AlertResolvedBy", fields: [resolvedByUserId], references: [id])
+  
+  @@index([orderId])
+  @@index([status])
+  @@index([severity])
+  @@index([category])
+  @@map("critical_alerts")
 }
 
 // ==================== AUDIT LOG ====================
