@@ -20,9 +20,16 @@ export default function SimpleProductionTracker() {
 
   const loadOrders = async () => {
     try {
-      const data = await api.getOrders({ status: 'IN_PRODUCTION,APPROVED' })
-      setOrders(data)
+      // Get all orders and filter in frontend
+      const data = await api.getOrders()
+      // Filter for orders that are approved or in production
+      const filteredOrders = (data || []).filter(o => 
+        o.status === 'IN_PRODUCTION' || o.status === 'APPROVED'
+      )
+      setOrders(filteredOrders)
     } catch (error) {
+      console.error('Load orders error:', error)
+      setOrders([]) // Set empty array on error
       toast.error('Failed to load orders')
     } finally {
       setLoading(false)
@@ -104,7 +111,7 @@ export default function SimpleProductionTracker() {
             <CardTitle className="text-sm text-slate-400">In Production</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-white">{orders.length}</div>
+            <div className="text-2xl font-bold text-white">{Array.isArray(orders) ? orders.length : 0}</div>
           </CardContent>
         </Card>
         <Card className="bg-slate-900 border-slate-800">
@@ -113,10 +120,10 @@ export default function SimpleProductionTracker() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-500">
-              {orders.filter(o => o.productionStages?.some(s => 
+              {Array.isArray(orders) ? orders.filter(o => o.productionStages?.some(s => 
                 s.status === 'COMPLETED' && 
                 new Date(s.actualEndDate).toDateString() === new Date().toDateString()
-              )).length}
+              )).length : 0}
             </div>
           </CardContent>
         </Card>
@@ -126,7 +133,7 @@ export default function SimpleProductionTracker() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-blue-500">
-              {orders.filter(o => o.productionStages?.some(s => s.status === 'IN_PROGRESS')).length}
+              {Array.isArray(orders) ? orders.filter(o => o.productionStages?.some(s => s.status === 'IN_PROGRESS')).length : 0}
             </div>
           </CardContent>
         </Card>
