@@ -29,6 +29,17 @@ function verifyAuth(request) {
   return verifyAccessToken(token)
 }
 
+// Helper to check role permissions
+function requireRole(user, allowedRoles) {
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
+    return NextResponse.json({ error: 'Forbidden - Insufficient permissions' }, { status: 403 })
+  }
+  return null
+}
+
 // Main route handler
 async function handleRoute(request, { params }) {
   const { path = [] } = await params
@@ -121,6 +132,10 @@ async function handleRoute(request, { params }) {
 
     // Register - POST /api/auth/register (Admin only in production)
     if (route === '/auth/register' && method === 'POST') {
+      const authUser = verifyAuth(request)
+      const denied = requireRole(authUser, ['CEO', 'ADMIN'])
+      if (denied) return handleCORS(denied)
+
       const body = await request.json()
       const { email, password, firstName, lastName, role, department } = body
 
@@ -253,9 +268,8 @@ async function handleRoute(request, { params }) {
     // Create customer - POST /api/customers
     if (route === '/customers' && method === 'POST') {
       const user = verifyAuth(request)
-      if (!user) {
-        return handleCORS(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }))
-      }
+      const denied = requireRole(user, ['SALES', 'CEO', 'ADMIN'])
+      if (denied) return handleCORS(denied)
 
       const body = await request.json()
       const customer = await prisma.customer.create({
@@ -401,9 +415,8 @@ async function handleRoute(request, { params }) {
     // Create order - POST /api/orders
     if (route === '/orders' && method === 'POST') {
       const user = verifyAuth(request)
-      if (!user) {
-        return handleCORS(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }))
-      }
+      const denied = requireRole(user, ['SALES', 'CEO', 'ADMIN'])
+      if (denied) return handleCORS(denied)
 
       const body = await request.json()
       const jobNumber = await generateJobNumber()
@@ -495,9 +508,8 @@ async function handleRoute(request, { params }) {
     // Update order - PUT /api/orders/:id
     if (route.match(/^\/orders\/[^\/]+$/) && method === 'PUT') {
       const user = verifyAuth(request)
-      if (!user) {
-        return handleCORS(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }))
-      }
+      const denied = requireRole(user, ['SALES', 'DESIGN', 'CEO', 'ADMIN'])
+      if (denied) return handleCORS(denied)
 
       const orderId = path[1]
       const body = await request.json()
@@ -561,9 +573,8 @@ async function handleRoute(request, { params }) {
     // Update production stage - PUT /api/production/stages/:id
     if (route.match(/^\/production\/stages\/[^\/]+$/) && method === 'PUT') {
       const user = verifyAuth(request)
-      if (!user) {
-        return handleCORS(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }))
-      }
+      const denied = requireRole(user, ['PRODUCTION', 'CEO', 'ADMIN'])
+      if (denied) return handleCORS(denied)
 
       const stageId = path[2]
       const body = await request.json()
@@ -657,9 +668,8 @@ async function handleRoute(request, { params }) {
     // Create component - POST /api/components
     if (route === '/components' && method === 'POST') {
       const user = verifyAuth(request)
-      if (!user) {
-        return handleCORS(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }))
-      }
+      const denied = requireRole(user, ['INVENTORY', 'PROCUREMENT', 'CEO', 'ADMIN'])
+      if (denied) return handleCORS(denied)
 
       const body = await request.json()
       const component = await prisma.component.create({
@@ -681,9 +691,8 @@ async function handleRoute(request, { params }) {
     // Update component - PUT /api/components/:id
     if (route.match(/^\/components\/[^\/]+$/) && method === 'PUT') {
       const user = verifyAuth(request)
-      if (!user) {
-        return handleCORS(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }))
-      }
+      const denied = requireRole(user, ['INVENTORY', 'PROCUREMENT', 'CEO', 'ADMIN'])
+      if (denied) return handleCORS(denied)
 
       const componentId = path[1]
       const body = await request.json()
@@ -726,9 +735,8 @@ async function handleRoute(request, { params }) {
     // Create supplier - POST /api/suppliers
     if (route === '/suppliers' && method === 'POST') {
       const user = verifyAuth(request)
-      if (!user) {
-        return handleCORS(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }))
-      }
+      const denied = requireRole(user, ['PROCUREMENT', 'CEO', 'ADMIN'])
+      if (denied) return handleCORS(denied)
 
       const body = await request.json()
       const supplier = await prisma.supplier.create({
@@ -788,9 +796,8 @@ async function handleRoute(request, { params }) {
     // Create QC inspection - POST /api/qc/inspections
     if (route === '/qc/inspections' && method === 'POST') {
       const user = verifyAuth(request)
-      if (!user) {
-        return handleCORS(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }))
-      }
+      const denied = requireRole(user, ['QC', 'CEO', 'ADMIN'])
+      if (denied) return handleCORS(denied)
 
       const body = await request.json()
       const inspection = await prisma.qCInspection.create({
