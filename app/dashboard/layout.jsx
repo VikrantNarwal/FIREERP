@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { LogOut, Home, Users, Package, Boxes, ClipboardCheck, Truck, BarChart3, Settings } from 'lucide-react'
+import { LogOut, Home, Users, Package, Boxes, ClipboardCheck, Truck, BarChart3, Settings, Flame } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import api from '@/lib/api'
 import { toast } from 'sonner'
@@ -106,7 +106,15 @@ export default function DashboardLayout({ children }) {
       <nav className="bg-slate-900 border-b border-slate-800 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <h1 className="text-xl font-bold text-white">Manufacturing ERP</h1>
+            <div className="flex items-center gap-2">
+              <Flame className="w-6 h-6 text-orange-500" />
+              <div>
+                <h1 className="text-xl font-bold text-white flex items-center gap-2">
+                  FIRE ERP
+                </h1>
+                <p className="text-xs text-slate-400">cbfproduction.com</p>
+              </div>
+            </div>
             <div className="flex gap-2">
               {navItems.map((item) => {
                 const Icon = item.icon
