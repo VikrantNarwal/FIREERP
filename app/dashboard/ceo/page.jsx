@@ -16,6 +16,9 @@ export default function CEODashboard() {
   const [loading, setLoading] = useState(true)
   const [selectedAlert, setSelectedAlert] = useState(null)
   const [showAlertDetail, setShowAlertDetail] = useState(false)
+  const [showDetailView, setShowDetailView] = useState(false)
+  const [detailViewType, setDetailViewType] = useState('')
+  const [detailData, setDetailData] = useState([])
 
   useEffect(() => {
     loadDashboardData()
@@ -63,6 +66,42 @@ export default function CEODashboard() {
       loadDashboardData()
     } catch (error) {
       toast.error('Failed to acknowledge alert')
+    }
+  }
+
+  const handleStatClick = async (type) => {
+    setDetailViewType(type)
+    setShowDetailView(true)
+    
+    try {
+      let data = []
+      switch(type) {
+        case 'totalOrders':
+          data = await api.getOrders()
+          break
+        case 'inProduction':
+          const allOrders = await api.getOrders()
+          data = allOrders.filter(o => o.status === 'IN_PRODUCTION')
+          break
+        case 'delayed':
+          const orders = await api.getOrders()
+          data = orders.filter(o => 
+            o.promisedDate && 
+            new Date(o.promisedDate) < new Date() && 
+            !['DELIVERED', 'CLOSED', 'CANCELLED'].includes(o.status)
+          )
+          break
+        case 'lowStock':
+          data = await api.getComponents()
+          data = data.filter(c => c.currentStock <= c.reorderLevel)
+          break
+        default:
+          data = []
+      }
+      setDetailData(Array.isArray(data) ? data : [])
+    } catch (error) {
+      toast.error('Failed to load details')
+      setDetailData([])
     }
   }
 
@@ -163,13 +202,19 @@ export default function CEODashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map((stat, index) => {
           const Icon = stat.icon
+          const clickType = ['totalOrders', 'inProduction', 'delayed', '', '', '', 'lowStock', ''][index]
           return (
-            <Card key={index} className="bg-slate-900 border-slate-800 hover:border-slate-700 transition-all">
+            <Card 
+              key={index} 
+              className="bg-slate-900 border-slate-800 hover:border-slate-700 transition-all cursor-pointer"
+              onClick={() => clickType && handleStatClick(clickType)}
+            >
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-slate-400 mb-1">{stat.title}</p>
                     <p className="text-3xl font-bold text-white">{stat.value}</p>
+                    {clickType && <p className="text-xs text-slate-500 mt-1">Click for details →</p>}
                   </div>
                   <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${stat.color} flex items-center justify-center`}>
                     <Icon className="w-6 h-6 text-white" />
@@ -309,6 +354,53 @@ export default function CEODashboard() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Detail View Dialog */}
+      <Dialog open={showDetailView} onOpenChange={setShowDetailView}>
+        <DialogContent className="bg-slate-900 border-slate-800 text-white max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {detailViewType === 'totalOrders' && 'All Orders'}
+              {detailViewType === 'inProduction' && 'Orders in Production'}
+              {detailViewType === 'delayed' && 'Delayed Orders'}
+              {detailViewType === 'lowStock' && 'Low Stock Components'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            {detailViewType === 'lowStock' ? (
+              detailData.map((item) => (
+                <div key={item.id} className="p-3 bg-slate-800 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-white font-semibold">{item.name}</p>
+                      <p className="text-xs text-slate-400">{item.code} - {item.category}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-red-400 font-semibold">Stock: {item.currentStock} {item.unit}</p>
+                      <p className="text-xs text-slate-400">Reorder: {item.reorderLevel}</p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              detailData.map((order) => (
+                <div key={order.id} className="p-3 bg-slate-800 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-white font-semibold">{order.jobNumber}</p>
+                      <p className="text-xs text-slate-400">{order.customer?.name}</p>
+                    </div>
+                    <Badge>{order.status}</Badge>
+                  </div>
+                </div>
+              ))
+            )}
+            {detailData.length === 0 && (
+              <p className="text-center text-slate-400 py-8">No data to display</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Alert Detail Dialog */}
       <Dialog open={showAlertDetail} onOpenChange={setShowAlertDetail}>

@@ -54,6 +54,7 @@ export default function DashboardLayout({ children }) {
       { label: 'Dashboard', icon: BarChart3, href: '/dashboard/ceo' },
       { label: 'Orders', icon: Package, href: '/dashboard/ceo/orders' },
       { label: 'Team', icon: Users, href: '/dashboard/ceo/team' },
+      { label: 'Users', icon: Users, href: '/dashboard/ceo/users' },
       { label: 'Profile', icon: Users, href: '/dashboard/profile' }
     ],
     SALES: [
