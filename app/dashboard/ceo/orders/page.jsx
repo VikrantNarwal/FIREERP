@@ -288,16 +288,17 @@ export default function CEOOrders() {
               </div>
               <AlertDialogTitle>Delete Order</AlertDialogTitle>
             </div>
-            <AlertDialogDescription className="text-slate-400">
-              Are you sure you want to delete order <span className="font-semibold text-white">{orderToDelete?.jobNumber}</span>?
-              <br /><br />
-              This action will:
-              <ul className="list-disc list-inside mt-2 space-y-1">
-                <li>Soft-delete the order (set deletedAt timestamp)</li>
-                <li>Change status to CANCELLED</li>
-                <li>Create an audit log entry</li>
-                <li>This action cannot be undone</li>
-              </ul>
+            <AlertDialogDescription asChild>
+              <div className="text-slate-400">
+                <p>Are you sure you want to delete order <span className="font-semibold text-white">{orderToDelete?.jobNumber}</span>?</p>
+                <p className="mt-3">This action will:</p>
+                <ul className="list-disc list-inside mt-2 space-y-1">
+                  <li>Soft-delete the order (set deletedAt timestamp)</li>
+                  <li>Change status to CANCELLED</li>
+                  <li>Create an audit log entry</li>
+                  <li>This action cannot be undone</li>
+                </ul>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

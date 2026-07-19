@@ -18,6 +18,17 @@ export default function DesignDashboard() {
   const [loading, setLoading] = useState(true)
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [showDetailDialog, setShowDetailDialog] = useState(false)
+  const [measurements, setMeasurements] = useState({
+    woodenLogLength: '',
+    woodenLogWidth: '',
+    flameSheetLength: '',
+    flameSheetWidth: '',
+    mirrorLength: '',
+    mirrorWidth: '',
+    nylonRodLength: '',
+    ledStripLength: '',
+    notes: ''
+  })
 
   useEffect(() => {
     loadOrders()
@@ -49,6 +60,32 @@ export default function DesignDashboard() {
       loadOrders()
     } catch (error) {
       toast.error('Failed to approve design')
+    }
+  }
+
+  const handleSaveMeasurements = async () => {
+    if (!selectedOrder) return
+
+    try {
+      const measurementNotes = `
+Design Measurements:
+- Wooden Log: ${measurements.woodenLogLength}mm x ${measurements.woodenLogWidth}mm
+- Flame Sheet: ${measurements.flameSheetLength}mm x ${measurements.flameSheetWidth}mm
+- Mirror: ${measurements.mirrorLength}mm x ${measurements.mirrorWidth}mm
+- Nylon Rod: ${measurements.nylonRodLength}mm
+- LED Strip: ${measurements.ledStripLength}mm
+${measurements.notes ? `\nNotes: ${measurements.notes}` : ''}
+`.trim()
+
+      await api.updateOrder(selectedOrder.id, {
+        internalNotes: measurementNotes
+      })
+      
+      toast.success('Measurements saved successfully!')
+      loadOrders()
+      setShowDetailDialog(false)
+    } catch (error) {
+      toast.error('Failed to save measurements')
     }
   }
 
@@ -230,20 +267,137 @@ export default function DesignDashboard() {
                 </div>
               )}
 
-              {selectedOrder.status === 'QUOTATION' && (
-                <div className="pt-4 border-t border-slate-800">
+              {/* Measurement Inputs */}
+              <div className="border-t border-slate-800 pt-4">
+                <h3 className="text-white font-semibold mb-3">Pre-Assembly Measurements</h3>
+                
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-slate-400">Wooden Log Length (mm)</Label>
+                      <Input
+                        type="number"
+                        value={measurements.woodenLogLength}
+                        onChange={(e) => setMeasurements({...measurements, woodenLogLength: e.target.value})}
+                        className="bg-slate-800 border-slate-700 text-white"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-slate-400">Wooden Log Width (mm)</Label>
+                      <Input
+                        type="number"
+                        value={measurements.woodenLogWidth}
+                        onChange={(e) => setMeasurements({...measurements, woodenLogWidth: e.target.value})}
+                        className="bg-slate-800 border-slate-700 text-white"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-slate-400">Flame Sheet Length (mm)</Label>
+                      <Input
+                        type="number"
+                        value={measurements.flameSheetLength}
+                        onChange={(e) => setMeasurements({...measurements, flameSheetLength: e.target.value})}
+                        className="bg-slate-800 border-slate-700 text-white"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-slate-400">Flame Sheet Width (mm)</Label>
+                      <Input
+                        type="number"
+                        value={measurements.flameSheetWidth}
+                        onChange={(e) => setMeasurements({...measurements, flameSheetWidth: e.target.value})}
+                        className="bg-slate-800 border-slate-700 text-white"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-slate-400">Mirror Length (mm)</Label>
+                      <Input
+                        type="number"
+                        value={measurements.mirrorLength}
+                        onChange={(e) => setMeasurements({...measurements, mirrorLength: e.target.value})}
+                        className="bg-slate-800 border-slate-700 text-white"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-slate-400">Mirror Width (mm)</Label>
+                      <Input
+                        type="number"
+                        value={measurements.mirrorWidth}
+                        onChange={(e) => setMeasurements({...measurements, mirrorWidth: e.target.value})}
+                        className="bg-slate-800 border-slate-700 text-white"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-slate-400">Nylon Rod Length (mm)</Label>
+                      <Input
+                        type="number"
+                        value={measurements.nylonRodLength}
+                        onChange={(e) => setMeasurements({...measurements, nylonRodLength: e.target.value})}
+                        className="bg-slate-800 border-slate-700 text-white"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-slate-400">LED Strip Length (mm)</Label>
+                      <Input
+                        type="number"
+                        value={measurements.ledStripLength}
+                        onChange={(e) => setMeasurements({...measurements, ledStripLength: e.target.value})}
+                        className="bg-slate-800 border-slate-700 text-white"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label className="text-slate-400">Additional Notes</Label>
+                    <Textarea
+                      value={measurements.notes}
+                      onChange={(e) => setMeasurements({...measurements, notes: e.target.value})}
+                      className="bg-slate-800 border-slate-700 text-white"
+                      placeholder="Any special instructions..."
+                      rows={2}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-4 border-t border-slate-800">
+                <Button
+                  onClick={handleSaveMeasurements}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700"
+                >
+                  <Ruler className="w-4 h-4 mr-2" />
+                  Save Measurements
+                </Button>
+                {selectedOrder.status === 'QUOTATION' && (
                   <Button
                     onClick={() => {
                       handleApproveDesign(selectedOrder.id)
                       setShowDetailDialog(false)
                     }}
-                    className="w-full bg-green-600 hover:bg-green-700"
+                    className="flex-1 bg-green-600 hover:bg-green-700"
                   >
                     <CheckCircle className="w-4 h-4 mr-2" />
                     Approve Design
                   </Button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           )}
         </DialogContent>
