@@ -20,17 +20,18 @@ const PRODUCTION_STAGES = [
   { id: 'INCOMING_QC', name: 'Incoming QC', group: 'Quality' },
   { id: 'WOODEN_LOG_PREP', name: 'Wooden Log Prep', group: 'Assembly Prep' },
   { id: 'FLAME_SHEET_PREP', name: 'Flame Sheet Prep', group: 'Assembly Prep' },
+  { id: 'MIRROR_CUTTING', name: 'Mirror Cutting', group: 'Assembly Prep' },
   { id: 'LIGHT_ASSEMBLY', name: 'Light Assembly', group: 'Electronics' },
   { id: 'STEPPER_MOTOR_ASSEMBLY', name: 'Stepper Motor', group: 'Electronics' },
   { id: 'PCB_PREPARATION', name: 'PCB Preparation', group: 'Electronics' },
   { id: 'SPEAKER_ASSEMBLY', name: 'Speaker Assembly', group: 'Electronics' },
   { id: 'HEATER_ASSEMBLY', name: 'Heater Assembly', group: 'Electronics' },
   { id: 'MAIN_ASSEMBLY', name: 'Main Assembly', group: 'Final Assembly' },
+  { id: 'WIRING', name: 'Wiring & Connections', group: 'Final Assembly' },
   { id: 'FUNCTIONAL_TESTING', name: 'Functional Testing', group: 'Testing' },
   { id: 'BURN_IN_TEST', name: 'Burn-in Test', group: 'Testing' },
   { id: 'FINAL_QC', name: 'Final QC', group: 'Quality' },
-  { id: 'PACKAGING', name: 'Packaging', group: 'Dispatch' },
-  { id: 'DISPATCH_READY', name: 'Ready to Dispatch', group: 'Dispatch' }
+  { id: 'PACKAGING', name: 'Packaging', group: 'Dispatch' }
 ]
 
 export default function ProductionDashboard() {
