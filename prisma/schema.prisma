@@ -1,0 +1,629 @@
+// Manufacturing ERP System - Comprehensive Database Schema
+// Generator and Datasource
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== USER MANAGEMENT & AUTHENTICATION ====================
+
+enum UserRole {
+  CEO
+  SALES
+  DESIGN
+  PRODUCTION
+  INVENTORY
+  PROCUREMENT
+  QC
+  ELECTRONICS
+  DISPATCH
+  SERVICE
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+model User {
+  id                String              @id @default(uuid())
+  email             String              @unique
+  password          String
+  firstName         String
+  lastName          String
+  role              UserRole
+  department        String?
+  phone             String?
+  status            UserStatus          @default(ACTIVE)
+  twoFactorSecret   String?
+  twoFactorEnabled  Boolean             @default(false)
+  lastLogin         DateTime?
+  ipAddress         String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  deletedAt         DateTime?
+  
+  // Relations
+  orders            Order[]             @relation("SalesPersonOrders")
+  designApprovals   Order[]             @relation("DesignApprovals")
+  productionStages  ProductionStage[]
+  qcInspections     QCInspection[]
+  ncrs              NCR[]               @relation("NCRAssignedTo")
+  createdNCRs       NCR[]               @relation("NCRCreatedBy")
+  auditLogs         AuditLog[]
+  documents         Document[]
+  inventoryTransactions InventoryTransaction[]
+  
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+// ==================== CUSTOMER MANAGEMENT ====================
+
+model Customer {
+  id                String      @id @default(uuid())
+  name              String
+  company           String?
+  email             String?
+  phone             String
+  address           String?
+  city              String?
+  state             String?
+  pincode           String?
+  gst               String?
+  rating            Float?
+  totalOrders       Int         @default(0)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  deletedAt         DateTime?
+  
+  orders            Order[]
+  
+  @@index([phone])
+  @@index([email])
+  @@map("customers")
+}
+
+// ==================== PRODUCT MANAGEMENT ====================
+
+enum FireplaceType {
+  ELECTRICAL_FIREPLACE
+}
+
+enum FireplaceVariant {
+  EF        // E.F.
+  EFP       // E.F.P.
+  EFH       // E.F.H.
+  EFHP      // E.F.H.P.
+}
+
+enum FlameColor {
+  ORANGE
+  BLUE
+  MULTICOLOR
+  RGB
+}
+
+model Product {
+  id                String              @id @default(uuid())
+  name              String
+  type              FireplaceType
+  variant           FireplaceVariant
+  description       String?
+  basePrice         Float?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  deletedAt         DateTime?
+  
+  boms              BOM[]
+  orders            Order[]
+  
+  @@unique([type, variant])
+  @@map("products")
+}
+
+// ==================== BOM (Bill of Materials) ====================
+
+model BOM {
+  id                String      @id @default(uuid())
+  productId         String
+  version           String      @default("1.0")
+  revision          Int         @default(1)
+  isActive          Boolean     @default(true)
+  approvedBy        String?
+  approvedAt        DateTime?
+  notes             String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  product           Product     @relation(fields: [productId], references: [id])
+  items             BOMItem[]
+  orders            Order[]
+  
+  @@index([productId])
+  @@map("boms")
+}
+
+model BOMItem {
+  id                String      @id @default(uuid())
+  bomId             String
+  componentId       String
+  quantity          Float
+  unit              String
+  notes             String?
+  
+  bom               BOM         @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  component         Component   @relation(fields: [componentId], references: [id])
+  
+  @@index([bomId])
+  @@index([componentId])
+  @@map("bom_items")
+}
+
+// ==================== INVENTORY & COMPONENTS ====================
+
+enum ComponentCategory {
+  FRP_LOGS
+  PP_SHEETS
+  BROWN_FILMS
+  LED_MODULES
+  STEPPER_MOTORS
+  COUPLERS
+  NYLON_RODS
+  MIRROR_SHEETS
+  SMPS
+  PCBS
+  ESP32
+  DFPLAYER_MODULES
+  PAM8403_AMPLIFIERS
+  SPEAKERS
+  BLOWERS
+  HEATERS
+  CONNECTORS
+  WIRES
+  SCREWS
+  NUTS
+  POWDER_COATING
+  WELDING_RODS
+  PACKING_MATERIAL
+  OTHER
+}
+
+model Component {
+  id                String              @id @default(uuid())
+  name              String
+  code              String              @unique
+  category          ComponentCategory
+  description       String?
+  unit              String              @default("pcs")
+  currentStock      Float               @default(0)
+  reorderLevel      Float               @default(10)
+  reorderQuantity   Float               @default(100)
+  minStock          Float               @default(5)
+  maxStock          Float?
+  location          String?
+  supplierId        String?
+  unitPrice         Float?
+  gst               Float?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  deletedAt         DateTime?
+  
+  supplier          Supplier?           @relation(fields: [supplierId], references: [id])
+  bomItems          BOMItem[]
+  transactions      InventoryTransaction[]
+  
+  @@index([category])
+  @@index([supplierId])
+  @@map("components")
+}
+
+model InventoryTransaction {
+  id                String      @id @default(uuid())
+  componentId       String
+  type              String      // IN, OUT, RESERVED, CONSUMED, RETURNED, ADJUSTMENT
+  quantity          Float
+  orderId           String?
+  lotNumber         String?
+  reference         String?
+  notes             String?
+  userId            String?
+  createdAt         DateTime    @default(now())
+  
+  component         Component   @relation(fields: [componentId], references: [id])
+  order             Order?      @relation(fields: [orderId], references: [id])
+  user              User?       @relation(fields: [userId], references: [id])
+  
+  @@index([componentId])
+  @@index([orderId])
+  @@index([type])
+  @@map("inventory_transactions")
+}
+
+// ==================== SUPPLIER MANAGEMENT ====================
+
+model Supplier {
+  id                String      @id @default(uuid())
+  name              String
+  code              String      @unique
+  contactPerson     String?
+  email             String?
+  phone             String
+  address           String?
+  city              String?
+  state             String?
+  pincode           String?
+  gst               String?
+  rating            Float?      @default(0)
+  leadTimeDays      Int?
+  isPreferred       Boolean     @default(false)
+  isActive          Boolean     @default(true)
+  paymentTerms      String?
+  notes             String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  deletedAt         DateTime?
+  
+  components        Component[]
+  
+  @@index([phone])
+  @@map("suppliers")
+}
+
+// ==================== ORDER MANAGEMENT ====================
+
+enum OrderStatus {
+  QUOTATION
+  APPROVED
+  IN_PRODUCTION
+  QC_PENDING
+  QC_PASSED
+  QC_FAILED
+  READY_TO_DISPATCH
+  DISPATCHED
+  DELIVERED
+  INSTALLATION_PENDING
+  INSTALLED
+  CLOSED
+  CANCELLED
+}
+
+enum OrderPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+model Order {
+  id                String              @id @default(uuid())
+  jobNumber         String              @unique
+  customerId        String
+  productId         String
+  bomId             String?
+  
+  // Product Configuration
+  fireplaceType     FireplaceType
+  variant           FireplaceVariant
+  dimensions        Json?               // {width, height, depth}
+  flameColor        FlameColor?
+  soundOption       Boolean             @default(false)
+  rgbOption         Boolean             @default(false)
+  
+  // Order Details
+  status            OrderStatus         @default(QUOTATION)
+  priority          OrderPriority       @default(NORMAL)
+  quantity          Int                 @default(1)
+  unitPrice         Float?
+  totalPrice        Float?
+  discount          Float?
+  finalPrice        Float?
+  
+  // Dates
+  orderDate         DateTime            @default(now())
+  requiredDate      DateTime?
+  promisedDate      DateTime?
+  actualStartDate   DateTime?
+  actualEndDate     DateTime?
+  deliveryDate      DateTime?
+  installationDate  DateTime?
+  
+  // Team Assignment
+  salesPersonId     String
+  designApprovedBy  String?
+  designApprovedAt  DateTime?
+  
+  // Additional Info
+  notes             String?
+  internalNotes     String?
+  customerNotes     String?
+  delayReason       String?
+  
+  // Metadata
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  deletedAt         DateTime?
+  
+  // Relations
+  customer          Customer            @relation(fields: [customerId], references: [id])
+  product           Product             @relation(fields: [productId], references: [id])
+  bom               BOM?                @relation(fields: [bomId], references: [id])
+  salesPerson       User                @relation("SalesPersonOrders", fields: [salesPersonId], references: [id])
+  designApprover    User?               @relation("DesignApprovals", fields: [designApprovedBy], references: [id])
+  
+  productionStages  ProductionStage[]
+  qcInspections     QCInspection[]
+  documents         Document[]
+  serialNumbers     SerialNumber[]
+  inventoryTransactions InventoryTransaction[]
+  ncrs              NCR[]
+  
+  @@index([jobNumber])
+  @@index([status])
+  @@index([priority])
+  @@index([customerId])
+  @@index([salesPersonId])
+  @@map("orders")
+}
+
+// ==================== PRODUCTION MANAGEMENT ====================
+
+enum ProductionStageType {
+  DESIGN_APPROVED
+  LASER_CUTTING
+  BENDING
+  WELDING
+  GRINDING_BUFFING
+  POWDER_COATING
+  INCOMING_QC
+  WOODEN_LOG_PREP
+  FLAME_SHEET_PREP
+  LIGHT_ASSEMBLY
+  STEPPER_MOTOR_ASSEMBLY
+  PCB_PREPARATION
+  SPEAKER_ASSEMBLY
+  HEATER_ASSEMBLY
+  MAIN_ASSEMBLY
+  FUNCTIONAL_TESTING
+  BURN_IN_TEST
+  FINAL_QC
+  PACKAGING
+  DISPATCH_READY
+  DISPATCHED
+  DELIVERED
+  INSTALLATION_PENDING
+  INSTALLED
+  CLOSED
+}
+
+enum StageStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  ON_HOLD
+  FAILED
+  SKIPPED
+}
+
+model ProductionStage {
+  id                String              @id @default(uuid())
+  orderId           String
+  stage             ProductionStageType
+  status            StageStatus         @default(PENDING)
+  sequence          Int
+  
+  // Assignment
+  operatorId        String?
+  assignedAt        DateTime?
+  
+  // Timing
+  plannedStartDate  DateTime?
+  plannedEndDate    DateTime?
+  actualStartDate   DateTime?
+  actualEndDate     DateTime?
+  
+  // Details
+  checklists        Json?               // Array of checklist items
+  photos            String[]            @default([])
+  notes             String?
+  delayReason       String?
+  duration          Int?                // in minutes
+  
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  
+  order             Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  operator          User?               @relation(fields: [operatorId], references: [id])
+  
+  @@unique([orderId, stage])
+  @@index([orderId])
+  @@index([status])
+  @@index([stage])
+  @@map("production_stages")
+}
+
+// ==================== QUALITY CONTROL ====================
+
+enum InspectionType {
+  INCOMING
+  IN_PROCESS
+  FINAL
+}
+
+enum InspectionResult {
+  PENDING
+  PASS
+  FAIL
+  CONDITIONAL_PASS
+}
+
+model QCInspection {
+  id                String              @id @default(uuid())
+  orderId           String
+  type              InspectionType
+  stage             ProductionStageType?
+  inspectorId       String
+  
+  checklist         Json                // Inspection checklist
+  result            InspectionResult    @default(PENDING)
+  defects           Json?               // List of defects found
+  measurements      Json?               // Measurements taken
+  photos            String[]            @default([])
+  notes             String?
+  
+  inspectedAt       DateTime            @default(now())
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  
+  order             Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  inspector         User                @relation(fields: [inspectorId], references: [id])
+  ncrs              NCR[]
+  
+  @@index([orderId])
+  @@index([type])
+  @@index([result])
+  @@map("qc_inspections")
+}
+
+// ==================== NCR (Non-Conformance Report) ====================
+
+enum NCRStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+  REJECTED
+}
+
+model NCR {
+  id                String      @id @default(uuid())
+  ncrNumber         String      @unique
+  orderId           String
+  qcInspectionId    String?
+  
+  issue             String
+  description       String?
+  severity          String      // LOW, MEDIUM, HIGH, CRITICAL
+  category          String?
+  photos            String[]    @default([])
+  
+  status            NCRStatus   @default(OPEN)
+  correctiveAction  String?
+  preventiveAction  String?
+  
+  createdById       String
+  assignedToId      String?
+  resolvedBy        String?
+  
+  createdAt         DateTime    @default(now())
+  resolvedAt        DateTime?
+  updatedAt         DateTime    @updatedAt
+  
+  order             Order       @relation(fields: [orderId], references: [id])
+  qcInspection      QCInspection? @relation(fields: [qcInspectionId], references: [id])
+  createdBy         User        @relation("NCRCreatedBy", fields: [createdById], references: [id])
+  assignedTo        User?       @relation("NCRAssignedTo", fields: [assignedToId], references: [id])
+  
+  @@index([orderId])
+  @@index([status])
+  @@map("ncrs")
+}
+
+// ==================== SERIAL NUMBER & TRACEABILITY ====================
+
+model SerialNumber {
+  id                String      @id @default(uuid())
+  serialNumber      String      @unique
+  orderId           String
+  
+  // Manufacturing Details
+  manufacturingHistory Json      // Complete history of manufacturing
+  componentLotNumbers  Json?     // Lot numbers of all components used
+  firmwareVersion   String?
+  pcbRevision       String?
+  testResults       Json?
+  
+  // Timestamps
+  manufacturedAt    DateTime
+  qcApprovedAt      DateTime?
+  dispatchedAt      DateTime?
+  installedAt       DateTime?
+  
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  order             Order       @relation(fields: [orderId], references: [id])
+  
+  @@index([orderId])
+  @@map("serial_numbers")
+}
+
+// ==================== DOCUMENT MANAGEMENT ====================
+
+enum DocumentType {
+  SOLIDWORKS_DRAWING
+  AUTOCAD_FILE
+  BOM_FILE
+  PRODUCTION_DRAWING
+  QC_REPORT
+  TEST_REPORT
+  PACKING_LIST
+  INVOICE
+  DELIVERY_CHALLAN
+  WARRANTY_CARD
+  INSTALLATION_MANUAL
+  CUSTOMER_APPROVAL
+  DESIGN_APPROVAL
+  OTHER
+}
+
+model Document {
+  id                String      @id @default(uuid())
+  orderId           String?
+  type              DocumentType
+  fileName          String
+  fileUrl           String
+  fileSize          Int?
+  mimeType          String?
+  uploadedById      String
+  version           String?     @default("1.0")
+  notes             String?
+  
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  order             Order?      @relation(fields: [orderId], references: [id])
+  uploadedBy        User        @relation(fields: [uploadedById], references: [id])
+  
+  @@index([orderId])
+  @@index([type])
+  @@map("documents")
+}
+
+// ==================== AUDIT LOG ====================
+
+model AuditLog {
+  id                String      @id @default(uuid())
+  userId            String
+  action            String      // CREATE, UPDATE, DELETE, LOGIN, LOGOUT, etc.
+  resource          String      // Table/Entity name
+  resourceId        String?
+  changes           Json?       // Before/After values
+  ipAddress         String?
+  userAgent         String?
+  timestamp         DateTime    @default(now())
+  
+  user              User        @relation(fields: [userId], references: [id])
+  
+  @@index([userId])
+  @@index([resource])
+  @@index([timestamp])
+  @@map("audit_logs")
+}
