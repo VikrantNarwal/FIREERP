@@ -678,6 +678,34 @@ async function handleRoute(request, { params }) {
       return handleCORS(NextResponse.json(component, { status: 201 }))
     }
 
+    // Update component - PUT /api/components/:id
+    if (route.match(/^\/components\/[^\/]+$/) && method === 'PUT') {
+      const user = verifyAuth(request)
+      if (!user) {
+        return handleCORS(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }))
+      }
+
+      const componentId = path[1]
+      const body = await request.json()
+
+      const component = await prisma.component.update({
+        where: { id: componentId },
+        data: body
+      })
+
+      await prisma.auditLog.create({
+        data: {
+          userId: user.id,
+          action: 'UPDATE',
+          resource: 'Component',
+          resourceId: componentId,
+          changes: body
+        }
+      })
+
+      return handleCORS(NextResponse.json(component))
+    }
+
     // ==================== SUPPLIER ROUTES ====================
 
     // Get all suppliers - GET /api/suppliers
