@@ -24,13 +24,13 @@ export default function SalesDashboard() {
     productId: '',
     fireplaceType: 'ELECTRICAL_FIREPLACE',
     variant: 'EF',
-    dimensions: { width: 0, height: 0, depth: 0 },
+    dimensions: { width: '', height: '', depth: '' },
     flameColor: 'ORANGE',
     soundOption: false,
     rgbOption: false,
     quantity: 1,
-    unitPrice: 0,
-    discount: 0,
+    unitPrice: '',
+    discount: '',
     notes: ''
   })
 
@@ -57,14 +57,25 @@ export default function SalesDashboard() {
 
   const handleCreateOrder = async () => {
     try {
-      const totalPrice = newOrder.unitPrice * newOrder.quantity
-      const finalPrice = totalPrice - (newOrder.discount || 0)
+      const unitPrice = parseFloat(newOrder.unitPrice) || 0
+      const quantity = parseInt(newOrder.quantity) || 1
+      const discount = parseFloat(newOrder.discount) || 0
+      
+      const totalPrice = unitPrice * quantity
+      const finalPrice = totalPrice - discount
 
       const orderData = {
         ...newOrder,
+        quantity,
+        unitPrice,
+        discount,
         totalPrice,
         finalPrice,
-        dimensions: newOrder.dimensions
+        dimensions: {
+          width: parseFloat(newOrder.dimensions.width) || 0,
+          height: parseFloat(newOrder.dimensions.height) || 0,
+          depth: parseFloat(newOrder.dimensions.depth) || 0
+        }
       }
 
       await api.createOrder(orderData)
@@ -77,13 +88,13 @@ export default function SalesDashboard() {
         productId: '',
         fireplaceType: 'ELECTRICAL_FIREPLACE',
         variant: 'EF',
-        dimensions: { width: 0, height: 0, depth: 0 },
+        dimensions: { width: '', height: '', depth: '' },
         flameColor: 'ORANGE',
         soundOption: false,
         rgbOption: false,
         quantity: 1,
-        unitPrice: 0,
-        discount: 0,
+        unitPrice: '',
+        discount: '',
         notes: ''
       })
     } catch (error) {
@@ -197,7 +208,7 @@ export default function SalesDashboard() {
                     type="number"
                     className="bg-slate-800 border-slate-700 text-white"
                     value={newOrder.dimensions.width}
-                    onChange={(e) => setNewOrder({...newOrder, dimensions: {...newOrder.dimensions, width: parseFloat(e.target.value)}})}
+                    onChange={(e) => setNewOrder({...newOrder, dimensions: {...newOrder.dimensions, width: e.target.value}})}
                   />
                 </div>
                 <div className="space-y-2">
@@ -206,7 +217,7 @@ export default function SalesDashboard() {
                     type="number"
                     className="bg-slate-800 border-slate-700 text-white"
                     value={newOrder.dimensions.height}
-                    onChange={(e) => setNewOrder({...newOrder, dimensions: {...newOrder.dimensions, height: parseFloat(e.target.value)}})}
+                    onChange={(e) => setNewOrder({...newOrder, dimensions: {...newOrder.dimensions, height: e.target.value}})}
                   />
                 </div>
                 <div className="space-y-2">
@@ -215,7 +226,7 @@ export default function SalesDashboard() {
                     type="number"
                     className="bg-slate-800 border-slate-700 text-white"
                     value={newOrder.dimensions.depth}
-                    onChange={(e) => setNewOrder({...newOrder, dimensions: {...newOrder.dimensions, depth: parseFloat(e.target.value)}})}
+                    onChange={(e) => setNewOrder({...newOrder, dimensions: {...newOrder.dimensions, depth: e.target.value}})}
                   />
                 </div>
               </div>
@@ -227,7 +238,7 @@ export default function SalesDashboard() {
                     type="number"
                     className="bg-slate-800 border-slate-700 text-white"
                     value={newOrder.unitPrice}
-                    onChange={(e) => setNewOrder({...newOrder, unitPrice: parseFloat(e.target.value)})}
+                    onChange={(e) => setNewOrder({...newOrder, unitPrice: e.target.value})}
                   />
                 </div>
                 <div className="space-y-2">
@@ -236,7 +247,7 @@ export default function SalesDashboard() {
                     type="number"
                     className="bg-slate-800 border-slate-700 text-white"
                     value={newOrder.quantity}
-                    onChange={(e) => setNewOrder({...newOrder, quantity: parseInt(e.target.value)})}
+                    onChange={(e) => setNewOrder({...newOrder, quantity: e.target.value || 1})}
                   />
                 </div>
                 <div className="space-y-2">
@@ -245,7 +256,7 @@ export default function SalesDashboard() {
                     type="number"
                     className="bg-slate-800 border-slate-700 text-white"
                     value={newOrder.discount}
-                    onChange={(e) => setNewOrder({...newOrder, discount: parseFloat(e.target.value)})}
+                    onChange={(e) => setNewOrder({...newOrder, discount: e.target.value})}
                   />
                 </div>
               </div>
