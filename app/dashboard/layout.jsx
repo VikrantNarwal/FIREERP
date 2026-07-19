@@ -112,7 +112,14 @@ export default function DashboardLayout({ children }) {
                 <h1 className="text-xl font-bold text-white flex items-center gap-2">
                   FIRE ERP
                 </h1>
-                <p className="text-xs text-slate-400">cbfproduction.com</p>
+                <a 
+                  href="https://cbfproduction.com" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-xs text-orange-400 hover:text-orange-300 transition-colors cursor-pointer hover:underline"
+                >
+                  cbfproduction.com
+                </a>
               </div>
             </div>
             <div className="flex gap-2">

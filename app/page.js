@@ -71,7 +71,14 @@ export default function LoginPage() {
           </div>
           <CardTitle className="text-3xl font-bold text-white">FIRE ERP</CardTitle>
           <CardDescription className="text-slate-300">
-            cbfproduction.com
+            <a 
+              href="https://cbfproduction.com" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-orange-400 hover:text-orange-300 transition-colors hover:underline"
+            >
+              cbfproduction.com
+            </a>
           </CardDescription>
         </CardHeader>
         <CardContent>
