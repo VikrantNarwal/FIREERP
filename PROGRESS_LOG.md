@@ -3,10 +3,19 @@ _(Paste this whole file into any new Claude conversation so it instantly knows t
 
 **Repo:** https://github.com/VikrantNarwal/FIREERP
 **Last verified:** 2026-07-27
-**Last commit on main:** `57c0c41` — "Add customizable inventory options migration and route updates"
+**Last commit on main:** `d815503` (confirmed pushed) — a further `postinstall` fix is committed locally but NOT yet confirmed pushed as of this update
 **Working tree status (last check):** clean except one harmless untracked file (`PROJECT_STATUS_*.md`, a local report — safe to delete or .gitignore)
 
 ---
+
+## 🟡 FIX APPLIED, PENDING PUSH + LIVE VERIFICATION
+
+**Production crash found: `prisma.inventoryOption` was `undefined` on Vercel — Prisma Client was never regenerated after the new model was added.**
+- Root cause: `package.json` had NO `postinstall` script, despite an earlier commit titled "Add postinstall script for Prisma client generation" (that commit apparently didn't actually add it, or it was later removed — worth remembering this project's commit messages don't always match what the diff actually did).
+- Effect: `GET /api/inventory-options?type=CATEGORY` returned 500 in production → frontend's `api.get()` didn't check response status → `setCategories(errorObject)` → `categories.map is not a function` → whole Inventory page crashed with "client-side exception" on load.
+- **Fix applied and build-verified locally:** added `"postinstall": "prisma generate"` to `package.json` scripts (right after `"scripts": {`). `npm run build` → "Compiled successfully".
+- **NOT yet done:** confirm `git push` succeeded; redeploy on Vercel with **build cache cleared** (critical — cached `node_modules` could skip re-running `postinstall`); reload `fireerp.vercel.app/dashboard/inventory` live and confirm (a) no crash, (b) dropdown shows real categories.
+- **Also not yet done (lower priority, optional hardening):** frontend `loadCategories()` still doesn't defensively check `Array.isArray(data)` before calling `setCategories(data)` — a fix was drafted in chat but never applied/committed. Worth doing later so a future API hiccup degrades gracefully instead of crashing the page again.
 
 ---
 
