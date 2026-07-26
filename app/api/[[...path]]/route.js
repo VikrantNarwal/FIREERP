@@ -728,7 +728,7 @@ async function handleRoute(request, { params }) {
 
       const component = await prisma.component.update({
         where: { id: componentId },
-        data: body
+        data: (() => { const { notes, ...rest } = body; return notes !== undefined ? { ...rest, description: notes } : rest })()
       })
 
       await prisma.auditLog.create({
