@@ -717,7 +717,7 @@ async function handleRoute(request, { params }) {
       return handleCORS(NextResponse.json(component, { status: 201 }))
     }
 
-    // Update component - PUT /api/components/:id
+// Update component - PUT /api/components/:id
     if (route.match(/^\/components\/[^\/]+$/) && method === 'PUT') {
       const user = verifyAuth(request)
       const denied = requireRole(user, ['INVENTORY', 'PROCUREMENT', 'CEO', 'ADMIN'])
@@ -744,8 +744,145 @@ async function handleRoute(request, { params }) {
       return handleCORS(NextResponse.json(component))
     }
 
-    // ==================== SUPPLIER ROUTES ====================
+    // Soft delete component - DELETE /api/components/:id
+    if (route.match(/^\/components\/[^\/]+$/) && method === 'DELETE') {
+      const user = verifyAuth(request)
+      const denied = requireRole(user, ['INVENTORY', 'PROCUREMENT', 'CEO', 'ADMIN'])
+      if (denied) return handleCORS(denied)
 
+      const componentId = path[1]
+
+      const component = await prisma.component.update({
+        where: { id: componentId },
+        data: { deletedAt: new Date() }
+      })
+
+      await prisma.auditLog.create({
+        data: {
+          userId: user.id,
+          action: 'DELETE',
+          resource: 'Component',
+          resourceId: componentId,
+          changes: { deletedAt: component.deletedAt }
+        }
+      })
+
+return handleCORS(NextResponse.json({ message: 'Component deleted successfully', component }))
+    }
+
+    // ==================== INVENTORY OPTIONS ROUTES (Category/Unit management) ====================
+
+    // Get inventory options - GET /api/inventory-options?type=CATEGORY
+    if (route === '/inventory-options' && method === 'GET') {
+      const user = verifyAuth(request)
+      if (!user) {
+        return handleCORS(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }))
+      }
+
+      const url = new URL(request.url)
+      const type = url.searchParams.get('type')
+
+      const where = { isActive: true }
+      if (type) where.type = type
+
+      const options = await prisma.inventoryOption.findMany({
+        where,
+        orderBy: { label: 'asc' }
+      })
+
+      return handleCORS(NextResponse.json(options))
+    }
+
+    // Create inventory option - POST /api/inventory-options
+    if (route === '/inventory-options' && method === 'POST') {
+      const user = verifyAuth(request)
+      const denied = requireRole(user, ['INVENTORY', 'CEO', 'ADMIN'])
+      if (denied) return handleCORS(denied)
+
+      const body = await request.json()
+
+      if (!body.type || !body.value || !body.label) {
+        return handleCORS(NextResponse.json(
+          { error: 'type, value, and label are required' },
+          { status: 400 }
+        ))
+      }
+
+      const option = await prisma.inventoryOption.create({
+        data: {
+          type: body.type,
+          value: body.value.toUpperCase().replace(/\s+/g, '_'),
+          label: body.label
+        }
+      })
+
+      await prisma.auditLog.create({
+        data: {
+          userId: user.id,
+          action: 'CREATE',
+          resource: 'InventoryOption',
+          resourceId: option.id
+        }
+      })
+
+      return handleCORS(NextResponse.json(option, { status: 201 }))
+    }
+
+    // Update inventory option (rename) - PUT /api/inventory-options/:id
+    if (route.match(/^\/inventory-options\/[^\/]+$/) && method === 'PUT') {
+      const user = verifyAuth(request)
+      const denied = requireRole(user, ['INVENTORY', 'CEO', 'ADMIN'])
+      if (denied) return handleCORS(denied)
+
+      const optionId = path[1]
+      const body = await request.json()
+
+      const option = await prisma.inventoryOption.update({
+        where: { id: optionId },
+        data: {
+          label: body.label,
+          isActive: body.isActive
+        }
+      })
+
+      await prisma.auditLog.create({
+        data: {
+          userId: user.id,
+          action: 'UPDATE',
+          resource: 'InventoryOption',
+          resourceId: optionId,
+          changes: body
+        }
+      })
+
+      return handleCORS(NextResponse.json(option))
+    }
+
+    // Delete inventory option - DELETE /api/inventory-options/:id
+    if (route.match(/^\/inventory-options\/[^\/]+$/) && method === 'DELETE') {
+      const user = verifyAuth(request)
+      const denied = requireRole(user, ['INVENTORY', 'CEO', 'ADMIN'])
+      if (denied) return handleCORS(denied)
+
+      const optionId = path[1]
+
+      await prisma.inventoryOption.delete({
+        where: { id: optionId }
+      })
+
+      await prisma.auditLog.create({
+        data: {
+          userId: user.id,
+          action: 'DELETE',
+          resource: 'InventoryOption',
+          resourceId: optionId
+        }
+      })
+
+      return handleCORS(NextResponse.json({ message: 'Option deleted successfully' }))
+    }
+
+    // ==================== SUPPLIER ROUTES ====================
     // Get all suppliers - GET /api/suppliers
     if (route === '/suppliers' && method === 'GET') {
       const user = verifyAuth(request)

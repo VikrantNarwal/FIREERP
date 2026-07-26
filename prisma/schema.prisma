@@ -169,41 +169,11 @@ model BOMItem {
   @@index([componentId])
   @@map("bom_items")
 }
-
-// ==================== INVENTORY & COMPONENTS ====================
-
-enum ComponentCategory {
-  FRP_LOGS
-  PP_SHEETS
-  BROWN_FILMS
-  LED_MODULES
-  STEPPER_MOTORS
-  COUPLERS
-  NYLON_RODS
-  MIRROR_SHEETS
-  SMPS
-  PCBS
-  ESP32
-  DFPLAYER_MODULES
-  PAM8403_AMPLIFIERS
-  SPEAKERS
-  BLOWERS
-  HEATERS
-  CONNECTORS
-  WIRES
-  SCREWS
-  NUTS
-  POWDER_COATING
-  WELDING_RODS
-  PACKING_MATERIAL
-  OTHER
-}
-
 model Component {
   id                String              @id @default(uuid())
   name              String
   code              String              @unique
-  category          ComponentCategory
+  category          String
   description       String?
   unit              String              @default("pcs")
   currentStock      Float               @default(0)
@@ -212,6 +182,9 @@ model Component {
   minStock          Float               @default(5)
   maxStock          Float?
   location          String?
+  vendorName        String?
+  vendorContact     String?
+  vendorEmail       String?
   supplierId        String?
   unitPrice         Float?
   gst               Float?
@@ -304,7 +277,24 @@ enum OrderPriority {
   HIGH
   URGENT
 }
+enum InventoryOptionType {
+  CATEGORY
+  UNIT
+}
 
+model InventoryOption {
+  id                String              @id @default(uuid())
+  type              InventoryOptionType
+  value             String
+  label             String
+  isActive          Boolean             @default(true)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@unique([type, value])
+  @@index([type])
+  @@map("inventory_options")
+}
 model Order {
   id                String              @id @default(uuid())
   jobNumber         String              @unique
