@@ -127,6 +127,7 @@ model Product {
   
   boms              BOM[]
   orders            Order[]
+  components        Component[]
   
   @@unique([type, variant])
   @@map("products")
@@ -186,6 +187,7 @@ model Component {
   vendorContact     String?
   vendorEmail       String?
   supplierId        String?
+  productId         String?
   unitPrice         Float?
   gst               Float?
   createdAt         DateTime            @default(now())
@@ -193,11 +195,13 @@ model Component {
   deletedAt         DateTime?
   
   supplier          Supplier?           @relation(fields: [supplierId], references: [id])
+  product           Product?            @relation(fields: [productId], references: [id])
   bomItems          BOMItem[]
   transactions      InventoryTransaction[]
   
   @@index([category])
   @@index([supplierId])
+  @@index([productId])
   @@map("components")
 }
 

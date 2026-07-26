@@ -686,7 +686,8 @@ async function handleRoute(request, { params }) {
       const components = await prisma.component.findMany({
         where: { deletedAt: null },
         include: {
-          supplier: true
+          supplier: true,
+          product: true
         },
         orderBy: { name: 'asc' }
       })
@@ -702,7 +703,11 @@ async function handleRoute(request, { params }) {
 
       const body = await request.json()
       const component = await prisma.component.create({
-        data: body
+        data: body,
+        include: {
+          supplier: true,
+          product: true
+        }
       })
 
       await prisma.auditLog.create({
@@ -728,7 +733,11 @@ async function handleRoute(request, { params }) {
 
       const component = await prisma.component.update({
         where: { id: componentId },
-        data: (() => { const { notes, ...rest } = body; return notes !== undefined ? { ...rest, description: notes } : rest })()
+        data: (() => { const { notes, ...rest } = body; return notes !== undefined ? { ...rest, description: notes } : rest })(),
+        include: {
+          supplier: true,
+          product: true
+        }
       })
 
       await prisma.auditLog.create({

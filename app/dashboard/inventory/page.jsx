@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { AlertTriangle, Package, FileDown, Edit, Bell, User, Phone } from 'lucide-react'
+import { AlertTriangle, Package, FileDown, Edit, Bell, User, Phone, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/api'
 
@@ -17,20 +17,32 @@ export default function InventoryDashboard() {
   const [components, setComponents] = useState([])
   const [editingComponent, setEditingComponent] = useState(null)
   const [showEditDialog, setShowEditDialog] = useState(false)
+  const [showAddDialog, setShowAddDialog] = useState(false)
   const [showUrgentNoteDialog, setShowUrgentNoteDialog] = useState(false)
   const [loading, setLoading] = useState(true)
   const [categories, setCategories] = useState([])
+  const [products, setProducts] = useState([])
 
   useEffect(() => {
     loadCategories()
+    loadProducts()
   }, [])
 
   const loadCategories = async () => {
     try {
       const data = await api.get('/inventory-options?type=CATEGORY')
-      setCategories(data)
+      setCategories(Array.isArray(data) ? data : [])
     } catch (error) {
       toast.error('Failed to load categories')
+    }
+  }
+
+  const loadProducts = async () => {
+    try {
+      const data = await api.getProducts()
+      setProducts(Array.isArray(data) ? data : [])
+    } catch (error) {
+      toast.error('Failed to load products')
     }
   }
   
@@ -40,10 +52,11 @@ export default function InventoryDashboard() {
     priority: 'HIGH'
   })
 
-  const [editForm, setEditForm] = useState({
+  const emptyForm = {
     code: '',
     name: '',
     category: '',
+    productId: 'none',
     currentStock: 0,
     reorderLevel: 0,
     reorderQuantity: 0,
@@ -52,7 +65,10 @@ export default function InventoryDashboard() {
     vendorContact: '',
     vendorEmail: '',
     notes: ''
-  })
+  }
+
+  const [editForm, setEditForm] = useState(emptyForm)
+  const [addForm, setAddForm] = useState(emptyForm)
 
   useEffect(() => {
     loadComponents()
@@ -75,6 +91,7 @@ export default function InventoryDashboard() {
       code: component.code || '',
       name: component.name || '',
       category: component.category || '',
+      productId: component.productId || 'none',
       currentStock: component.currentStock || 0,
       reorderLevel: component.reorderLevel || 0,
       reorderQuantity: component.reorderQuantity || 0,
@@ -94,12 +111,30 @@ export default function InventoryDashboard() {
     }
 
     try {
-      await api.put(`/components/${editingComponent.id}`, editForm)
+      await api.put(`/components/${editingComponent.id}`, { ...editForm, productId: editForm.productId === 'none' ? null : editForm.productId })
       toast.success('Component updated successfully!')
       setShowEditDialog(false)
       loadComponents()
     } catch (error) {
       toast.error('Failed to update component')
+    }
+  }
+
+  const handleAddComponent = async () => {
+    if (!addForm.name || !addForm.code) {
+      toast.error('Name and code are required')
+      return
+    }
+
+    try {
+      const payload = { ...addForm, productId: addForm.productId === 'none' ? null : addForm.productId }
+      await api.createComponent(payload)
+      toast.success('Inventory item added successfully!')
+      setShowAddDialog(false)
+      setAddForm(emptyForm)
+      loadComponents()
+    } catch (error) {
+      toast.error('Failed to add inventory item')
     }
   }
 
@@ -136,9 +171,20 @@ export default function InventoryDashboard() {
       toast.info('All components are adequately stocked')
       return
     }
-    
-    const list = `PURCHASE ORDER LIST\nGenerated: ${new Date().toLocaleString()}\n\n` +
-      lowStock.map(c => 
+
+    // Group by product so items belonging to different products are listed separately
+    const groups = new Map()
+    lowStock.forEach(c => {
+      const productLabel = c.product?.name || 'Unassigned / General Stock'
+      if (!groups.has(productLabel)) groups.set(productLabel, [])
+      groups.get(productLabel).push(c)
+    })
+
+    let list = `PURCHASE ORDER LIST\nGenerated: ${new Date().toLocaleString()}\nTotal Low Stock Items: ${lowStock.length}\n\n`
+
+    for (const [productLabel, items] of groups) {
+      list += `${'='.repeat(50)}\nPRODUCT: ${productLabel}\n${'='.repeat(50)}\n\n`
+      list += items.map(c =>
         `Item: ${c.name}\n` +
         `Code: ${c.code}\n` +
         `Category: ${c.category}\n` +
@@ -149,6 +195,8 @@ export default function InventoryDashboard() {
         `Email: ${c.vendorEmail || 'Not specified'}\n` +
         `${'-'.repeat(50)}\n`
       ).join('\n')
+      list += '\n'
+    }
     
     const blob = new Blob([list], { type: 'text/plain' })
     const url = URL.createObjectURL(blob)
@@ -172,6 +220,13 @@ export default function InventoryDashboard() {
           <p className="text-slate-400 mt-1">Complete component tracking with vendor management</p>
         </div>
         <div className="flex gap-2">
+          <Button
+            onClick={() => { setAddForm(emptyForm); setShowAddDialog(true) }}
+            className="gap-2 bg-blue-600 hover:bg-blue-700"
+          >
+            <Plus className="w-4 h-4" />
+            Add Component
+          </Button>
           <Button 
             onClick={() => setShowUrgentNoteDialog(true)} 
             className="gap-2 bg-red-600 hover:bg-red-700"
@@ -230,6 +285,7 @@ export default function InventoryDashboard() {
                   <th className="text-left p-3">Code</th>
                   <th className="text-left p-3">Name</th>
                   <th className="text-left p-3">Category</th>
+                  <th className="text-left p-3">Product</th>
                   <th className="text-right p-3">Current Stock</th>
                   <th className="text-right p-3">Reorder Level</th>
                   <th className="text-right p-3">Reorder Qty</th>
@@ -246,6 +302,7 @@ export default function InventoryDashboard() {
                     <td className="p-3 text-slate-300 font-mono text-xs">{component.code}</td>
                     <td className="p-3 text-white">{component.name}</td>
                     <td className="p-3 text-slate-400">{component.category}</td>
+                    <td className="p-3 text-slate-400">{component.product?.name || '-'}</td>
                     <td className="p-3 text-right text-white font-semibold">{component.currentStock}</td>
                     <td className="p-3 text-right text-slate-400">{component.reorderLevel}</td>
                     <td className="p-3 text-right text-slate-400">{component.reorderQuantity}</td>
@@ -280,6 +337,167 @@ export default function InventoryDashboard() {
         </CardContent>
       </Card>
 
+      {/* Add Component Dialog */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="bg-slate-900 border-slate-800 text-white max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add Inventory Item</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Code *</Label>
+                <Input
+                  value={addForm.code}
+                  onChange={(e) => setAddForm({ ...addForm, code: e.target.value })}
+                  className="bg-slate-800 border-slate-700 text-white"
+                  placeholder="e.g. FRP-001"
+                />
+              </div>
+              <div>
+                <Label>Component Name *</Label>
+                <Input
+                  value={addForm.name}
+                  onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
+                  className="bg-slate-800 border-slate-700 text-white"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Category</Label>
+                <Select value={addForm.category} onValueChange={(v) => setAddForm({ ...addForm, category: v })}>
+                  <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.value}>{cat.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Product</Label>
+                <Select value={addForm.productId} onValueChange={(v) => setAddForm({ ...addForm, productId: v })}>
+                  <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No product / General stock</SelectItem>
+                    {products.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-4 gap-4">
+              <div>
+                <Label>Current Stock</Label>
+                <Input
+                  type="number"
+                  value={addForm.currentStock}
+                  onChange={(e) => setAddForm({ ...addForm, currentStock: parseFloat(e.target.value) || 0 })}
+                  className="bg-slate-800 border-slate-700 text-white"
+                />
+              </div>
+              <div>
+                <Label>Reorder Level</Label>
+                <Input
+                  type="number"
+                  value={addForm.reorderLevel}
+                  onChange={(e) => setAddForm({ ...addForm, reorderLevel: parseFloat(e.target.value) || 0 })}
+                  className="bg-slate-800 border-slate-700 text-white"
+                />
+              </div>
+              <div>
+                <Label>Reorder Quantity</Label>
+                <Input
+                  type="number"
+                  value={addForm.reorderQuantity}
+                  onChange={(e) => setAddForm({ ...addForm, reorderQuantity: parseFloat(e.target.value) || 0 })}
+                  className="bg-slate-800 border-slate-700 text-white"
+                />
+              </div>
+              <div>
+                <Label>Unit</Label>
+                <Select value={addForm.unit} onValueChange={(v) => setAddForm({ ...addForm, unit: v })}>
+                  <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
+                    <SelectValue placeholder="Select unit" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="PCS">Pieces</SelectItem>
+                    <SelectItem value="KG">Kilograms</SelectItem>
+                    <SelectItem value="M">Meters</SelectItem>
+                    <SelectItem value="L">Liters</SelectItem>
+                    <SelectItem value="BOX">Box</SelectItem>
+                    <SelectItem value="ROLL">Roll</SelectItem>
+                    <SelectItem value="SET">Set</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="border-t border-slate-800 pt-4">
+              <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
+                <User className="w-4 h-4" />
+                Vendor Information
+              </h3>
+              <div className="space-y-3">
+                <div>
+                  <Label>Vendor Name</Label>
+                  <Input
+                    value={addForm.vendorName}
+                    onChange={(e) => setAddForm({ ...addForm, vendorName: e.target.value })}
+                    className="bg-slate-800 border-slate-700 text-white"
+                    placeholder="Vendor company name"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Vendor Contact</Label>
+                    <Input
+                      value={addForm.vendorContact}
+                      onChange={(e) => setAddForm({ ...addForm, vendorContact: e.target.value })}
+                      className="bg-slate-800 border-slate-700 text-white"
+                      placeholder="+91 9876543210"
+                    />
+                  </div>
+                  <div>
+                    <Label>Vendor Email</Label>
+                    <Input
+                      type="email"
+                      value={addForm.vendorEmail}
+                      onChange={(e) => setAddForm({ ...addForm, vendorEmail: e.target.value })}
+                      className="bg-slate-800 border-slate-700 text-white"
+                      placeholder="vendor@company.com"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <Label>Notes / Instructions</Label>
+              <Textarea
+                value={addForm.notes}
+                onChange={(e) => setAddForm({ ...addForm, notes: e.target.value })}
+                className="bg-slate-800 border-slate-700 text-white"
+                placeholder="Special handling instructions, storage requirements, etc."
+                rows={3}
+              />
+            </div>
+
+            <Button onClick={handleAddComponent} className="w-full bg-blue-600 hover:bg-blue-700">
+              Add Inventory Item
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Edit Component Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent className="bg-slate-900 border-slate-800 text-white max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -306,18 +524,34 @@ export default function InventoryDashboard() {
               </div>
             </div>
 
-            <div>
-              <Label>Category</Label>
-              <Select value={editForm.category} onValueChange={(v) => setEditForm({ ...editForm, category: v })}>
-                <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((cat) => (
-                    <SelectItem key={cat.id} value={cat.value}>{cat.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Category</Label>
+                <Select value={editForm.category} onValueChange={(v) => setEditForm({ ...editForm, category: v })}>
+                  <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.value}>{cat.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Product</Label>
+                <Select value={editForm.productId} onValueChange={(v) => setEditForm({ ...editForm, productId: v })}>
+                  <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No product / General stock</SelectItem>
+                    {products.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="grid grid-cols-4 gap-4">
