@@ -19,6 +19,20 @@ export default function InventoryDashboard() {
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [showUrgentNoteDialog, setShowUrgentNoteDialog] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [categories, setCategories] = useState([])
+
+  useEffect(() => {
+    loadCategories()
+  }, [])
+
+  const loadCategories = async () => {
+    try {
+      const data = await api.get('/inventory-options?type=CATEGORY')
+      setCategories(data)
+    } catch (error) {
+      toast.error('Failed to load categories')
+    }
+  }
   
   const [urgentNote, setUrgentNote] = useState({
     componentIds: [],
@@ -299,13 +313,9 @@ export default function InventoryDashboard() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="RAW_MATERIAL">Raw Material</SelectItem>
-                  <SelectItem value="ELECTRONICS">Electronics</SelectItem>
-                  <SelectItem value="HARDWARE">Hardware</SelectItem>
-                  <SelectItem value="PACKAGING">Packaging</SelectItem>
-                  <SelectItem value="CONSUMABLE">Consumable</SelectItem>
-                  <SelectItem value="TOOL">Tool</SelectItem>
-                  <SelectItem value="OTHER">Other</SelectItem>
+                  {categories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.value}>{cat.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
