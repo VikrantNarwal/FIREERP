@@ -10,9 +10,11 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Users, Package, AlertCircle, Activity, Wrench, MessageSquare, Plus, Clock, Download, ListChecks } from 'lucide-react'
+import { Progress } from '@/components/ui/progress'
 import { toast } from 'sonner'
 import api from '@/lib/api'
 import { formatDistanceToNow } from 'date-fns'
+import { getStageProgress, stageLabel } from '@/lib/utils'
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState(null)
@@ -484,17 +486,37 @@ export default function AdminDashboard() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-            {orders.map(order => (
-              <div key={order.id} className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg">
-                <div>
-                  <p className="text-white font-medium">{order.jobNumber}</p>
-                  <p className="text-xs text-slate-400">
-                    {order.customer?.name} · {order.product?.name}
-                  </p>
+            {orders.map(order => {
+              const progress = getStageProgress(order.productionStages)
+              const overdue = order.promisedDate &&
+                new Date(order.promisedDate) < new Date() &&
+                !['DELIVERED', 'CANCELLED', 'CLOSED'].includes(order.status)
+              return (
+                <div key={order.id} className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-white font-medium">{order.jobNumber}</p>
+                      {order.priority === 'URGENT' && (
+                        <Badge className="bg-red-500/20 text-red-400 border-red-500/50 text-[10px]">URGENT</Badge>
+                      )}
+                      {overdue && (
+                        <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/50 text-[10px]">OVERDUE</Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-400">
+                      {order.customer?.name} · {order.product?.name}
+                    </p>
+                    {progress.total > 0 && (
+                      <p className="text-xs text-slate-500 mt-1">
+                        {progress.completedCount}/{progress.total} stages
+                        {progress.nextStage && <> · Next: {stageLabel(progress.nextStage.stage)}</>}
+                      </p>
+                    )}
+                  </div>
+                  <Badge>{order.status}</Badge>
                 </div>
-                <Badge>{order.status}</Badge>
-              </div>
-            ))}
+              )
+            })}
             {orders.length === 0 && (
               <p className="text-center text-slate-400 py-8">No orders yet</p>
             )}

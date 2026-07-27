@@ -72,6 +72,60 @@
 
 ---
 
+## Phase 4b — Dark Theme Contrast Fix (Admin Products Page)
+**Status: ✅ Deployed** — 2026-07-27
+**Commit:** `1536b7d` *(commit message on this push is stale/incorrect — see note below)*
+
+### What shipped
+- Fixed 16 places in `app/dashboard/admin/products/page.jsx` where `<Input>`, `<Textarea>`,
+  `<SelectTrigger>`, and ghost icon buttons (pencil, stage settings, up/down arrows) were
+  missing the `bg-slate-800 border-slate-700 text-white` / `text-slate-300 hover:text-white`
+  classes used consistently everywhere else in the app — resulted in dark text on a dark
+  background, effectively invisible. Full-file replacement applied.
+
+---
+
+## Phase 5 — Order Status Click-Through & Downloadable Report
+**Status: ✅ Deployed** — 2026-07-27
+**Commit:** `1536b7d` — labeled "Fix dark theme contrast on admin products page" in git history,
+but the actual diff in this commit is this Phase 5 work (3 files: `app/dashboard/admin/page.jsx`,
+`app/dashboard/sales/page.jsx`, `app/api/admin/reports/export/route.js`). No functional issue —
+just a mismatched commit message worth knowing if you're ever bisecting git history later.
+
+### What shipped
+- **Admin dashboard** (`app/dashboard/admin/page.jsx`):
+  - "Total Orders" stat card is now clickable → opens a modal listing every order with its
+    current status (job number, customer, product, status badge)
+  - New "Download Report" button in the header → downloads a plain-text file covering every
+    order: customer details, product/variant, status, key dates, pricing, and full payment
+    history per order
+- **Sales dashboard** (`app/dashboard/sales/page.jsx`):
+  - Same clickable "Total Orders" card + full order-status modal added, giving Sales a way to
+    see every order's status beyond the existing "10 most recent" list
+- **New API route:** `GET /api/admin/reports/export` (Admin/CEO only) — generates the text
+  report server-side and returns it as a downloadable attachment. Lives as its own dedicated
+  route file outside the app's single catch-all router (`app/api/[[...path]]/route.js`) — Next.js
+  matches the specific path first, so no change to that file was needed.
+- Frontend download wiring uses a manual `fetch()` with the `Authorization: Bearer` header
+  (not a plain `<a href>` link), since this app's auth token lives in `localStorage`, not cookies
+
+### Known limitation — flagged, not silently worked around
+- The schema has **no dedicated "dispatched at" timestamp** on `Order`. The report labels
+  `Order.deliveryDate` as "Dispatch/Delivery Date" since it's the closest existing field — this
+  is an approximation, not a true capture of the moment status flips to `DISPATCHED`. If a real
+  dispatch timestamp is wanted, that needs a small schema addition (new field + a code hook that
+  sets it when status changes) — not yet built, pending a decision.
+
+### Follow-ups
+- [ ] Live smoke test: click "Total Orders" on both Admin and Sales dashboards, confirm the
+      modal lists all orders (not just 10) with correct statuses
+- [ ] Live smoke test: click "Download Report" as Admin, confirm the `.txt` file downloads and
+      contains correct customer/payment/dispatch data for a few known orders
+- [ ] Decide whether to add a true `dispatchedAt` timestamp field (see limitation above)
+- [ ] Optional: commit message on `1536b7d` could be amended for clarity, though not required
+
+---
+
 ## Phases 1–3 — Admin/CEO/Sales Order Visibility & Flagging
 **Status:** Delivered as exact copy-paste code in `BUILD_PLAN.md` (not re-verified in this log —
 confirm against that file and your own deployment history if you need exact dates/commits).

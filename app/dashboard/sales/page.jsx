@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Package, DollarSign, FileText, Upload, Receipt } from 'lucide-react'
+import { Plus, Package, DollarSign, FileText, Upload, Receipt, Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -10,9 +10,11 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
+import { Progress } from '@/components/ui/progress'
 import { toast } from 'sonner'
 import api from '@/lib/api'
 import { formatDistanceToNow } from 'date-fns'
+import { getStageProgress, stageLabel } from '@/lib/utils'
 
 export default function SalesDashboard() {
   const [orders, setOrders] = useState([])
@@ -28,6 +30,7 @@ export default function SalesDashboard() {
   const [showQuotationDialog, setShowQuotationDialog] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [showOrdersModal, setShowOrdersModal] = useState(false)
+  const [showOrderDetailDialog, setShowOrderDetailDialog] = useState(false)
   
   // New Order State
   const [newOrder, setNewOrder] = useState({
@@ -229,6 +232,11 @@ export default function SalesDashboard() {
     }
     return colors[status] || 'bg-slate-500/20 text-slate-400 border-slate-500/50'
   }
+
+  const isOverdue = (order) =>
+    order.promisedDate &&
+    new Date(order.promisedDate) < new Date() &&
+    !['DELIVERED', 'CANCELLED', 'CLOSED'].includes(order.status)
 
   if (loading) {
     return <div className="text-white">Loading...</div>
@@ -505,66 +513,99 @@ export default function SalesDashboard() {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {orders.slice(0, 10).map((order) => (
-              <div
-                key={order.id}
-                className="p-4 bg-slate-800/50 rounded-lg hover:bg-slate-800 transition-colors"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-white font-semibold">{order.jobNumber}</h3>
-                      <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
-                      {order.advanceAmountPaid && order.advanceAmountPaid > 0 && (
-                        <Badge className="bg-green-500/20 text-green-400 border-green-500/50">
-                          Advance Paid: ₹{order.advanceAmountPaid}
-                        </Badge>
+            {orders.slice(0, 10).map((order) => {
+              const progress = getStageProgress(order.productionStages)
+              return (
+                <div
+                  key={order.id}
+                  className="p-4 bg-slate-800/50 rounded-lg hover:bg-slate-800 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h3 className="text-white font-semibold">{order.jobNumber}</h3>
+                        <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
+                        {order.priority === 'URGENT' && (
+                          <Badge className="bg-red-500/20 text-red-400 border-red-500/50">URGENT</Badge>
+                        )}
+                        {isOverdue(order) && (
+                          <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/50">OVERDUE</Badge>
+                        )}
+                        {order.advanceAmountPaid && order.advanceAmountPaid > 0 && (
+                          <Badge className="bg-green-500/20 text-green-400 border-green-500/50">
+                            Advance Paid: ₹{order.advanceAmountPaid}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-4 text-sm text-slate-400 mb-2">
+                        <span>{order.customer?.name}</span>
+                        <span>•</span>
+                        <span>₹{order.finalPrice}</span>
+                        {order.balanceDue !== null && order.balanceDue !== undefined && (
+                          <>
+                            <span>•</span>
+                            <span className={order.balanceDue > 0 ? 'text-yellow-400' : 'text-green-400'}>
+                              Balance: ₹{order.balanceDue}
+                            </span>
+                          </>
+                        )}
+                        <span>•</span>
+                        <span>{formatDistanceToNow(new Date(order.createdAt), { addSuffix: true })}</span>
+                      </div>
+                      {progress.total > 0 && (
+                        <div className="max-w-md">
+                          <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+                            <span>
+                              {progress.completedCount}/{progress.total} stages complete
+                              {progress.nextStage && <> · Next: {stageLabel(progress.nextStage.stage)}</>}
+                            </span>
+                            <span>{progress.percent}%</span>
+                          </div>
+                          <Progress value={progress.percent} className="h-1.5" />
+                        </div>
                       )}
                     </div>
-                    <div className="flex items-center gap-4 text-sm text-slate-400">
-                      <span>{order.customer?.name}</span>
-                      <span>•</span>
-                      <span>₹{order.finalPrice}</span>
-                      {order.balanceDue !== null && order.balanceDue !== undefined && (
-                        <>
-                          <span>•</span>
-                          <span className={order.balanceDue > 0 ? 'text-yellow-400' : 'text-green-400'}>
-                            Balance: ₹{order.balanceDue}
-                          </span>
-                        </>
-                      )}
-                      <span>•</span>
-                      <span>{formatDistanceToNow(new Date(order.createdAt), { addSuffix: true })}</span>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="gap-2 text-slate-300 hover:text-white"
+                        onClick={() => {
+                          setSelectedOrder(order)
+                          setShowOrderDetailDialog(true)
+                        }}
+                      >
+                        <Eye className="w-4 h-4" />
+                        View Status
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-2"
+                        onClick={() => {
+                          setSelectedOrder(order)
+                          setShowQuotationDialog(true)
+                        }}
+                      >
+                        <Upload className="w-4 h-4" />
+                        Quotation
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="gap-2 bg-green-600 hover:bg-green-700"
+                        onClick={() => {
+                          setSelectedOrder(order)
+                          setShowPaymentDialog(true)
+                        }}
+                      >
+                        <DollarSign className="w-4 h-4" />
+                        Record Payment
+                      </Button>
                     </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="gap-2"
-                      onClick={() => {
-                        setSelectedOrder(order)
-                        setShowQuotationDialog(true)
-                      }}
-                    >
-                      <Upload className="w-4 h-4" />
-                      Quotation
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="gap-2 bg-green-600 hover:bg-green-700"
-                      onClick={() => {
-                        setSelectedOrder(order)
-                        setShowPaymentDialog(true)
-                      }}
-                    >
-                      <DollarSign className="w-4 h-4" />
-                      Record Payment
-                    </Button>
                   </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </CardContent>
       </Card>
@@ -694,19 +735,103 @@ export default function SalesDashboard() {
             <DialogTitle>All Orders — Status</DialogTitle>
           </DialogHeader>
           <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-            {orders.map(order => (
-              <div key={order.id} className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg">
-                <div>
-                  <p className="text-white font-medium">{order.jobNumber}</p>
-                  <p className="text-xs text-slate-400">{order.customer?.name}</p>
+            {orders.map(order => {
+              const progress = getStageProgress(order.productionStages)
+              return (
+                <div key={order.id} className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-white font-medium">{order.jobNumber}</p>
+                      {order.priority === 'URGENT' && (
+                        <Badge className="bg-red-500/20 text-red-400 border-red-500/50 text-[10px]">URGENT</Badge>
+                      )}
+                      {isOverdue(order) && (
+                        <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/50 text-[10px]">OVERDUE</Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-400">{order.customer?.name}</p>
+                    {progress.total > 0 && (
+                      <p className="text-xs text-slate-500 mt-1">
+                        {progress.completedCount}/{progress.total} stages
+                        {progress.nextStage && <> · Next: {stageLabel(progress.nextStage.stage)}</>}
+                      </p>
+                    )}
+                  </div>
+                  <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
                 </div>
-                <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
-              </div>
-            ))}
+              )
+            })}
             {orders.length === 0 && (
               <p className="text-center text-slate-400 py-8">No orders yet</p>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Order Status / Production Stage Detail Dialog — read-only for Sales */}
+      <Dialog open={showOrderDetailDialog} onOpenChange={setShowOrderDetailDialog}>
+        <DialogContent className="bg-slate-900 border-slate-800 text-white max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Order Status — {selectedOrder?.jobNumber}</DialogTitle>
+          </DialogHeader>
+          {selectedOrder && (() => {
+            const progress = getStageProgress(selectedOrder.productionStages)
+            return (
+              <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-slate-400 text-sm">Order Status</p>
+                    <Badge className={getStatusColor(selectedOrder.status)}>{selectedOrder.status}</Badge>
+                  </div>
+                  <div>
+                    <p className="text-slate-400 text-sm">Priority</p>
+                    <Badge className={selectedOrder.priority === 'URGENT' ? 'bg-red-500/20 text-red-400 border-red-500/50' : 'bg-slate-500/20 text-slate-300 border-slate-500/50'}>
+                      {selectedOrder.priority}
+                    </Badge>
+                  </div>
+                </div>
+
+                {selectedOrder.promisedDate && (
+                  <div>
+                    <p className="text-slate-400 text-sm">Promised Delivery Date</p>
+                    <p className={isOverdue(selectedOrder) ? 'text-orange-400 font-semibold' : 'text-white'}>
+                      {new Date(selectedOrder.promisedDate).toLocaleDateString()}
+                      {isOverdue(selectedOrder) && ' (overdue)'}
+                    </p>
+                  </div>
+                )}
+
+                {progress.total > 0 && (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-slate-400 text-sm">Production Progress</p>
+                      <p className="text-xs text-slate-400">{progress.completedCount}/{progress.total} complete</p>
+                    </div>
+                    <Progress value={progress.percent} className="h-1.5 mb-3" />
+
+                    {progress.remaining.length > 0 ? (
+                      <p className="text-xs text-slate-500 mb-3">
+                        Remaining ({progress.remainingCount}): {progress.remaining.map((s) => stageLabel(s.stage)).join(', ')}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-green-400 mb-3">All stages complete</p>
+                    )}
+
+                    <div className="space-y-1">
+                      {progress.completed.concat(progress.remaining).sort((a, b) => a.sequence - b.sequence).map((s) => (
+                        <div key={s.id} className="flex justify-between text-sm">
+                          <span className={s.status === 'COMPLETED' ? 'text-slate-500' : 'text-white'}>
+                            {stageLabel(s.stage)}
+                          </span>
+                          <span className="text-slate-400">{s.status}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
         </DialogContent>
       </Dialog>
     </div>
