@@ -4,45 +4,24 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Progress } from '@/components/ui/progress'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Label } from '@/components/ui/label'
-import { AlertCircle, CheckCircle, Ruler, Clock } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { AlertCircle, CheckCircle, Ruler } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/api'
-
-const PRODUCTION_STAGES = [
-  { id: 'LASER_CUTTING', name: 'Laser Cutting', group: 'Metal Work' },
-  { id: 'BENDING', name: 'Bending', group: 'Metal Work' },
-  { id: 'WELDING', name: 'Welding', group: 'Metal Work' },
-  { id: 'GRINDING_BUFFING', name: 'Grinding & Buffing', group: 'Metal Work' },
-  { id: 'POWDER_COATING', name: 'Powder Coating', group: 'Metal Work' },
-  { id: 'INCOMING_QC', name: 'Incoming QC', group: 'Quality' },
-  { id: 'WOODEN_LOG_PREP', name: 'Wooden Log Prep', group: 'Assembly Prep' },
-  { id: 'FLAME_SHEET_PREP', name: 'Flame Sheet Prep', group: 'Assembly Prep' },
-  { id: 'MIRROR_CUTTING', name: 'Mirror Cutting', group: 'Assembly Prep' },
-  { id: 'LIGHT_ASSEMBLY', name: 'Light Assembly', group: 'Electronics' },
-  { id: 'STEPPER_MOTOR_ASSEMBLY', name: 'Stepper Motor', group: 'Electronics' },
-  { id: 'PCB_PREPARATION', name: 'PCB Preparation', group: 'Electronics' },
-  { id: 'SPEAKER_ASSEMBLY', name: 'Speaker Assembly', group: 'Electronics' },
-  { id: 'HEATER_ASSEMBLY', name: 'Heater Assembly', group: 'Electronics' },
-  { id: 'MAIN_ASSEMBLY', name: 'Main Assembly', group: 'Final Assembly' },
-  { id: 'WIRING', name: 'Wiring & Connections', group: 'Final Assembly' },
-  { id: 'FUNCTIONAL_TESTING', name: 'Functional Testing', group: 'Testing' },
-  { id: 'BURN_IN_TEST', name: 'Burn-in Test', group: 'Testing' },
-  { id: 'FINAL_QC', name: 'Final QC', group: 'Quality' },
-  { id: 'PACKAGING', name: 'Packaging', group: 'Dispatch' }
-]
+import { getStageProgress, stageLabel } from '@/lib/utils'
 
 export default function ProductionDashboard() {
   const [orders, setOrders] = useState([])
+  const [variables, setVariables] = useState([])
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [showStageDialog, setShowStageDialog] = useState(false)
-  const [selectedStages, setSelectedStages] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     loadOrders()
+    loadVariables()
     const interval = setInterval(loadOrders, 30000)
     return () => clearInterval(interval)
   }, [])
@@ -50,10 +29,15 @@ export default function ProductionDashboard() {
   const loadOrders = async () => {
     try {
       const data = await api.getOrders()
-      const productionOrders = (data || []).filter(o => 
+      const productionOrders = (data || []).filter(o =>
         ['APPROVED', 'IN_PRODUCTION', 'QC_PENDING', 'QC_PASSED'].includes(o.status)
       )
       setOrders(productionOrders)
+      // Keep the open dialog's data in sync with the latest fetch (e.g. after a stage update)
+      if (selectedOrder) {
+        const refreshed = productionOrders.find(o => o.id === selectedOrder.id)
+        if (refreshed) setSelectedOrder(refreshed)
+      }
     } catch (error) {
       toast.error('Failed to load orders')
     } finally {
@@ -61,80 +45,48 @@ export default function ProductionDashboard() {
     }
   }
 
-  const handleUpdateStages = async () => {
-    if (selectedStages.length === 0) {
-      toast.error('Please select at least one stage')
-      return
-    }
-
+  // Design's measurement field definitions — used to label whatever values Design
+  // has saved on the order. Readable by every role; only Design/CEO/Admin can edit them.
+  const loadVariables = async () => {
     try {
-      // Update multiple stages simultaneously
-      const order = await api.getOrder(selectedOrder.id)
-      const stagesToUpdate = order.productionStages.filter(ps => 
-        selectedStages.includes(ps.stage)
-      )
-
-      await Promise.all(
-        stagesToUpdate.map(stage => 
-          api.updateProductionStage(stage.id, {
-            status: 'COMPLETED',
-            actualEndDate: new Date().toISOString()
-          })
-        )
-      )
-
-      // Update order status if needed
-      const allCompleted = order.productionStages.every(ps => 
-        ps.status === 'COMPLETED' || selectedStages.includes(ps.stage)
-      )
-      
-      if (allCompleted) {
-        await api.updateOrder(selectedOrder.id, { status: 'QC_PENDING' })
-      } else {
-        await api.updateOrder(selectedOrder.id, { status: 'IN_PRODUCTION' })
-      }
-
-      toast.success(`${selectedStages.length} stages marked as completed`)
-      setShowStageDialog(false)
-      setSelectedStages([])
-      loadOrders()
+      const data = await api.getPreAssemblyVariables()
+      setVariables(Array.isArray(data) ? data : [])
     } catch (error) {
-      toast.error('Failed to update stages')
+      // Non-fatal — measurements section just won't show labels if this fails
+      console.error('Failed to load measurement field definitions', error)
     }
   }
 
-  const toggleStage = (stageId) => {
-    setSelectedStages(prev => 
-      prev.includes(stageId) 
-        ? prev.filter(s => s !== stageId)
-        : [...prev, stageId]
-    )
+  const variableMap = variables.reduce((acc, v) => { acc[v.key] = v; return acc }, {})
+
+  const getDesignMeasurements = (order) => {
+    const values = order?.designMeasurements
+    if (!values || typeof values !== 'object' || Object.keys(values).length === 0) return []
+    return Object.entries(values)
+      .filter(([, value]) => value !== '' && value !== null && value !== undefined)
+      .map(([key, value]) => ({
+        key,
+        value,
+        label: variableMap[key]?.label || stageLabel(key),
+        unit: variableMap[key]?.unit || '',
+        group: variableMap[key]?.group || 'General'
+      }))
   }
 
-  const parseDesignerMeasurements = (internalNotes) => {
-    if (!internalNotes) return null
-    
-    const lines = internalNotes.split('\n')
-    const measurements = {}
-    
-    lines.forEach(line => {
-      if (line.includes('Wooden Log:')) measurements.woodenLog = line.split(':')[1]?.trim()
-      if (line.includes('Flame Sheet:')) measurements.flameSheet = line.split(':')[1]?.trim()
-      if (line.includes('Mirror:')) measurements.mirror = line.split(':')[1]?.trim()
-      if (line.includes('Nylon Rod:')) measurements.nylonRod = line.split(':')[1]?.trim()
-      if (line.includes('LED Strip:')) measurements.ledStrip = line.split(':')[1]?.trim()
-    })
-    
-    return Object.keys(measurements).length > 0 ? measurements : null
-  }
-
-  const getStageGroups = () => {
-    const groups = {}
-    PRODUCTION_STAGES.forEach(stage => {
-      if (!groups[stage.group]) groups[stage.group] = []
-      groups[stage.group].push(stage)
-    })
-    return groups
+  // Immediate, single-stage save — same proven pattern used on the Admin Orders page.
+  // Every change is its own request, so there is no "Save Changes" step that can
+  // silently no-op: either this toast fires with a real error, or the stage is updated.
+  // The order's overall status (APPROVED -> IN_PRODUCTION -> QC_PENDING, and back if a
+  // completed stage is reopened) is now kept in sync server-side, atomically, inside the
+  // same request that updates the stage — so a plain reload here is enough to pick it up.
+  const handleStageStatusChange = async (stage, newStatus) => {
+    try {
+      await api.updateProductionStage(stage.id, { status: newStatus })
+      toast.success('Stage updated')
+      await loadOrders()
+    } catch (error) {
+      toast.error(error.message || 'Failed to update stage')
+    }
   }
 
   if (loading) return <div className="text-white">Loading...</div>
@@ -201,10 +153,7 @@ export default function ProductionDashboard() {
                     <Button
                       size="sm"
                       className="bg-red-600 hover:bg-red-700"
-                      onClick={() => {
-                        setSelectedOrder(order)
-                        setShowStageDialog(true)
-                      }}
+                      onClick={() => { setSelectedOrder(order); setShowStageDialog(true) }}
                     >
                       Work on This
                     </Button>
@@ -224,10 +173,9 @@ export default function ProductionDashboard() {
         <CardContent>
           <div className="space-y-3">
             {orders.map(order => {
-              const measurements = parseDesignerMeasurements(order.internalNotes)
-              const completedStages = order.productionStages?.filter(ps => ps.status === 'COMPLETED').length || 0
-              const totalStages = order.productionStages?.length || 20
-              
+              const progress = getStageProgress(order.productionStages)
+              const measurements = getDesignMeasurements(order)
+
               return (
                 <div key={order.id} className="p-4 bg-slate-800/50 rounded-lg border border-slate-700">
                   <div className="flex items-start justify-between mb-3">
@@ -240,43 +188,47 @@ export default function ProductionDashboard() {
                         <Badge variant="outline">{order.status}</Badge>
                       </div>
                       <p className="text-sm text-slate-400 mb-2">{order.customer?.name} - {order.product?.name}</p>
-                      
-                      {/* Progress Bar */}
+
+                      {/* Progress Bar — driven by the order's real stage rows */}
                       <div className="mb-2">
                         <div className="flex justify-between text-xs text-slate-400 mb-1">
                           <span>Progress</span>
-                          <span>{completedStages}/{totalStages} stages</span>
+                          <span>{progress.completedCount}/{progress.total} stages</span>
                         </div>
-                        <div className="w-full bg-slate-700 rounded-full h-2">
-                          <div 
-                            className="bg-green-500 h-2 rounded-full transition-all"
-                            style={{ width: `${(completedStages / totalStages) * 100}%` }}
-                          />
-                        </div>
+                        <Progress value={progress.percent} className="h-2" />
+                        {progress.remaining.length > 0 && (
+                          <p className="text-xs text-slate-500 mt-1">
+                            Next: {stageLabel(progress.nextStage?.stage)}
+                          </p>
+                        )}
                       </div>
 
-                      {/* Designer Measurements */}
-                      {measurements && (
+                      {/* Sales Notes — carried over from the order Sales created; Design and
+                          Production both need to see whatever Sales attached to the order. */}
+                      {order.notes && (
+                        <div className="mt-2 p-2 bg-slate-700/30 border border-slate-600 rounded text-xs">
+                          <span className="font-semibold text-slate-300">Sales Notes: </span>
+                          <span className="text-slate-300">{order.notes}</span>
+                        </div>
+                      )}
+
+                      {/* Designer Measurements — structured, from Design's dashboard */}
+                      {measurements.length > 0 && (
                         <div className="mt-2 p-2 bg-blue-500/10 border border-blue-500/30 rounded text-xs">
                           <div className="flex items-center gap-2 mb-1 text-blue-400">
                             <Ruler className="w-3 h-3" />
                             <span className="font-semibold">Designer Measurements:</span>
                           </div>
                           <div className="grid grid-cols-2 gap-x-4 text-slate-300">
-                            {measurements.woodenLog && <span>Wooden Log: {measurements.woodenLog}</span>}
-                            {measurements.flameSheet && <span>Flame Sheet: {measurements.flameSheet}</span>}
-                            {measurements.mirror && <span>Mirror: {measurements.mirror}</span>}
-                            {measurements.nylonRod && <span>Nylon Rod: {measurements.nylonRod}</span>}
-                            {measurements.ledStrip && <span>LED Strip: {measurements.ledStrip}</span>}
+                            {measurements.map(m => (
+                              <span key={m.key}>{m.label}: {m.value}{m.unit ? ` ${m.unit}` : ''}</span>
+                            ))}
                           </div>
                         </div>
                       )}
                     </div>
                     <Button
-                      onClick={() => {
-                        setSelectedOrder(order)
-                        setShowStageDialog(true)
-                      }}
+                      onClick={() => { setSelectedOrder(order); setShowStageDialog(true) }}
                       className="bg-blue-600 hover:bg-blue-700"
                     >
                       <CheckCircle className="w-4 h-4 mr-2" />
@@ -286,86 +238,107 @@ export default function ProductionDashboard() {
                 </div>
               )
             })}
+            {orders.length === 0 && (
+              <div className="text-center py-8 text-slate-500">No active production orders</div>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Multi-Stage Selection Dialog */}
+      {/* Stage Update Dialog */}
       <Dialog open={showStageDialog} onOpenChange={setShowStageDialog}>
-        <DialogContent className="bg-slate-900 border-slate-800 text-white max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="bg-slate-900 border-slate-800 text-white max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Update Production Stages - {selectedOrder?.jobNumber}</DialogTitle>
-            <p className="text-sm text-slate-400">Select multiple stages that are completed (parallel work)</p>
+            <p className="text-sm text-slate-400">Each change saves immediately — no separate "Save" step needed.</p>
           </DialogHeader>
-          
-          {selectedOrder && (
-            <div className="space-y-6">
-              {/* Designer Measurements */}
-              {parseDesignerMeasurements(selectedOrder.internalNotes) && (
-                <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded">
-                  <h3 className="font-semibold text-blue-400 mb-3 flex items-center gap-2">
-                    <Ruler className="w-4 h-4" />
-                    Designer Specifications
-                  </h3>
-                  <div className="grid grid-cols-2 gap-3 text-sm text-slate-300">
-                    {Object.entries(parseDesignerMeasurements(selectedOrder.internalNotes)).map(([key, value]) => (
-                      <div key={key}>
-                        <span className="text-slate-400">{key.replace(/([A-Z])/g, ' $1').trim()}:</span>
-                        <span className="ml-2 font-semibold">{value}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
 
-              {/* Stage Groups */}
-              {Object.entries(getStageGroups()).map(([group, stages]) => (
-                <div key={group} className="space-y-2">
-                  <h3 className="font-semibold text-slate-300">{group}</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    {stages.map(stage => {
-                      const stageData = selectedOrder.productionStages?.find(ps => ps.stage === stage.id)
-                      const isCompleted = stageData?.status === 'COMPLETED'
-                      
-                      return (
-                        <div 
-                          key={stage.id}
-                          className={`flex items-center gap-3 p-3 rounded-lg border ${
-                            isCompleted 
-                              ? 'bg-green-500/10 border-green-500/50' 
-                              : 'bg-slate-800 border-slate-700'
-                          }`}
-                        >
-                          <Checkbox
-                            checked={isCompleted || selectedStages.includes(stage.id)}
-                            disabled={isCompleted}
-                            onCheckedChange={() => !isCompleted && toggleStage(stage.id)}
-                          />
-                          <Label className={isCompleted ? 'text-green-400' : 'text-white'}>
-                            {stage.name}
-                            {isCompleted && <CheckCircle className="w-3 h-3 inline ml-2" />}
-                          </Label>
+          {selectedOrder && (() => {
+            const progress = getStageProgress(selectedOrder.productionStages)
+            const measurements = getDesignMeasurements(selectedOrder)
+
+            return (
+              <div className="space-y-6">
+                {/* Sales Notes */}
+                {selectedOrder.notes && (
+                  <div className="p-4 bg-slate-800 border border-slate-700 rounded">
+                    <h3 className="font-semibold text-slate-300 mb-2">Sales Notes</h3>
+                    <p className="text-sm text-slate-300">{selectedOrder.notes}</p>
+                  </div>
+                )}
+
+                {/* Designer Measurements */}
+                {measurements.length > 0 && (
+                  <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded">
+                    <h3 className="font-semibold text-blue-400 mb-3 flex items-center gap-2">
+                      <Ruler className="w-4 h-4" />
+                      Designer Specifications
+                    </h3>
+                    <div className="grid grid-cols-2 gap-3 text-sm text-slate-300">
+                      {measurements.map(m => (
+                        <div key={m.key}>
+                          <span className="text-slate-400">{m.label}:</span>
+                          <span className="ml-2 font-semibold">{m.value}{m.unit ? ` ${m.unit}` : ''}</span>
                         </div>
-                      )
-                    })}
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Progress summary */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-slate-300 font-medium">Production Stages</p>
+                    <p className="text-xs text-slate-400">{progress.completedCount}/{progress.total} complete</p>
+                  </div>
+                  <Progress value={progress.percent} className="h-1.5 mb-3" />
+                  {progress.remaining.length > 0 && (
+                    <p className="text-xs text-slate-500 mb-3">
+                      Remaining ({progress.remainingCount}): {progress.remaining.map(s => stageLabel(s.stage)).join(', ')}
+                    </p>
+                  )}
+
+                  {/* Real stage rows for THIS order/product — never a hardcoded list,
+                      so this always matches whatever Admin has configured for this product. */}
+                  <div className="space-y-2">
+                    {progress.completed.concat(progress.remaining)
+                      .sort((a, b) => a.sequence - b.sequence)
+                      .map(stage => (
+                        <div key={stage.id} className="flex items-center justify-between bg-slate-800 p-3 rounded-lg border border-slate-700">
+                          <span className={`text-sm ${stage.status === 'COMPLETED' ? 'text-slate-400' : 'text-white'}`}>
+                            {stageLabel(stage.stage)}
+                            {stage.status === 'COMPLETED' && <CheckCircle className="w-3 h-3 inline ml-2 text-green-400" />}
+                          </span>
+                          <Select
+                            value={stage.status}
+                            onValueChange={(newStatus) => handleStageStatusChange(stage, newStatus)}
+                          >
+                            <SelectTrigger className="w-40 bg-slate-900 border-slate-700 text-white h-8">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="PENDING">Pending</SelectItem>
+                              <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+                              <SelectItem value="COMPLETED">Completed</SelectItem>
+                              <SelectItem value="ON_HOLD">On Hold</SelectItem>
+                              <SelectItem value="FAILED">Failed</SelectItem>
+                              <SelectItem value="SKIPPED">Skipped</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ))}
+                    {progress.total === 0 && (
+                      <p className="text-sm text-slate-500">This order has no production stages yet.</p>
+                    )}
                   </div>
                 </div>
-              ))}
 
-              <div className="flex gap-2 pt-4 border-t border-slate-800">
-                <Button
-                  onClick={handleUpdateStages}
-                  className="flex-1 bg-green-600 hover:bg-green-700"
-                  disabled={selectedStages.length === 0}
-                >
-                  Mark {selectedStages.length} Stage{selectedStages.length !== 1 ? 's' : ''} as Completed
-                </Button>
-                <Button variant="outline" onClick={() => setShowStageDialog(false)}>
-                  Cancel
-                </Button>
+                <div className="flex justify-end pt-2 border-t border-slate-800">
+                  <Button variant="outline" onClick={() => setShowStageDialog(false)}>Close</Button>
+                </div>
               </div>
-            </div>
-          )}
+            )
+          })()}
         </DialogContent>
       </Dialog>
     </div>

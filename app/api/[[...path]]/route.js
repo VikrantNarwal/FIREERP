@@ -588,32 +588,82 @@ async function handleRoute(request, { params }) {
       const stageId = path[2]
       const body = await request.json()
 
-      const stage = await prisma.productionStage.update({
-        where: { id: stageId },
-        data: {
-          ...body,
-          actualStartDate: body.status === 'IN_PROGRESS' && !body.actualStartDate ? new Date() : body.actualStartDate,
-          actualEndDate: body.status === 'COMPLETED' ? new Date() : null
-        },
-        include: {
-          operator: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true
+      const data = { ...body }
+      // Only auto-stamp timestamps when the caller didn't already supply one —
+      // never blindly null out a timestamp that was set on a previous update.
+      if (body.status === 'IN_PROGRESS' && !data.actualStartDate) {
+        data.actualStartDate = new Date()
+      } else if (data.actualStartDate) {
+        data.actualStartDate = new Date(data.actualStartDate)
+      }
+
+      if (body.status === 'COMPLETED' && !data.actualEndDate) {
+        data.actualEndDate = new Date()
+      } else if (data.actualEndDate) {
+        data.actualEndDate = new Date(data.actualEndDate)
+      }
+
+      // Everything below runs as one transaction: the stage write, the audit log, and the
+      // order's overall status all move together or not at all. This is also the single
+      // place that keeps Order.status in sync with its stages — Production, Admin, and CEO
+      // all call this same endpoint to change a stage, so they all get correct auto-advance
+      // for free instead of each dashboard reimplementing (and possibly disagreeing on) it.
+      const stage = await prisma.$transaction(async (tx) => {
+        const updatedStage = await tx.productionStage.update({
+          where: { id: stageId },
+          data,
+          include: {
+            operator: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true
+              }
             }
           }
-        }
-      })
+        })
 
-      await prisma.auditLog.create({
-        data: {
-          userId: user.id,
-          action: 'UPDATE',
-          resource: 'ProductionStage',
-          resourceId: stage.id,
-          changes: body
+        await tx.auditLog.create({
+          data: {
+            userId: user.id,
+            action: 'UPDATE',
+            resource: 'ProductionStage',
+            resourceId: updatedStage.id,
+            changes: body
+          }
+        })
+
+        const order = await tx.order.findUnique({
+          where: { id: updatedStage.orderId },
+          include: { productionStages: true }
+        })
+
+        if (order) {
+          const stages = order.productionStages
+          const allCompleted = stages.length > 0 && stages.every(s => s.status === 'COMPLETED')
+          const anyStarted = stages.some(s => s.status === 'IN_PROGRESS' || s.status === 'COMPLETED')
+
+          let nextOrderStatus = null
+          // Design approved it, and work has now actually started on at least one stage —
+          // move it out of "Design Approved" so it stops looking stuck there.
+          if (order.status === 'APPROVED' && anyStarted) {
+            nextOrderStatus = 'IN_PRODUCTION'
+          } else if (order.status === 'IN_PRODUCTION' && allCompleted) {
+            nextOrderStatus = 'QC_PENDING'
+          } else if (order.status === 'QC_PENDING' && !allCompleted) {
+            // A completed stage got reopened after QC already picked it up — step back.
+            nextOrderStatus = 'IN_PRODUCTION'
+          }
+
+          if (nextOrderStatus) {
+            await tx.order.update({
+              where: { id: order.id },
+              data: { status: nextOrderStatus }
+            })
+          }
         }
+
+        return updatedStage
       })
 
       return handleCORS(NextResponse.json(stage))
@@ -682,13 +732,60 @@ async function handleRoute(request, { params }) {
       if (denied) return handleCORS(denied)
 
       const body = await request.json()
-      const component = await prisma.component.create({
-        data: body,
-        include: {
-          supplier: true,
-          product: true
+
+      if (!body.name || !body.code) {
+        return handleCORS(NextResponse.json({ error: 'Name and code are required' }, { status: 400 }))
+      }
+
+      // Whitelist to real Component columns — the frontend form sends "notes"
+      // (mapped to the actual "description" column) and may send "productId": 'none'
+      // (mapped to null). Any other stray key is dropped instead of crashing the insert.
+      const {
+        name, code, category, description, notes, unit,
+        currentStock, reorderLevel, reorderQuantity, minStock, maxStock,
+        location, vendorName, vendorContact, vendorEmail,
+        supplierId, productId, unitPrice, gst
+      } = body
+
+      const data = {
+        name,
+        code,
+        category,
+        description: notes !== undefined ? notes : description,
+        unit: unit || 'pcs',
+        currentStock: currentStock !== undefined ? Number(currentStock) : undefined,
+        reorderLevel: reorderLevel !== undefined ? Number(reorderLevel) : undefined,
+        reorderQuantity: reorderQuantity !== undefined ? Number(reorderQuantity) : undefined,
+        minStock: minStock !== undefined ? Number(minStock) : undefined,
+        maxStock: maxStock !== undefined ? Number(maxStock) : undefined,
+        location,
+        vendorName,
+        vendorContact,
+        vendorEmail,
+        supplierId: supplierId || null,
+        productId: productId === 'none' ? null : (productId || null),
+        unitPrice: unitPrice !== undefined ? Number(unitPrice) : undefined,
+        gst: gst !== undefined ? Number(gst) : undefined
+      }
+
+      let component
+      try {
+        component = await prisma.component.create({
+          data,
+          include: {
+            supplier: true,
+            product: true
+          }
+        })
+      } catch (err) {
+        if (err.code === 'P2002') {
+          return handleCORS(NextResponse.json(
+            { error: `A component with code "${code}" already exists` },
+            { status: 409 }
+          ))
         }
-      })
+        throw err
+      }
 
       await prisma.auditLog.create({
         data: {
@@ -1238,73 +1335,93 @@ return handleCORS(NextResponse.json({ message: 'Component deleted successfully',
       if (denied) return handleCORS(denied)
 
       const body = await request.json()
-      
-      const payment = await prisma.payment.create({
-        data: {
-          orderId: body.orderId,
-          amount: body.amount,
-          paymentType: body.paymentType,
-          paymentMode: body.paymentMode,
-          transactionRef: body.transactionRef,
-          notes: body.notes,
-          paymentDate: body.paymentDate ? new Date(body.paymentDate) : new Date(),
-          recordedById: user.id
-        },
-        include: {
-          order: {
-            select: {
-              id: true,
-              jobNumber: true
-            }
-          },
-          recordedBy: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true
-            }
-          }
-        }
-      })
 
-      // Update order payment fields if this is an advance payment
-      if (body.paymentType === 'ADVANCE') {
-        await prisma.order.update({
-          where: { id: body.orderId },
-          data: {
-            advanceAmountPaid: body.amount,
-            advanceDatePaid: payment.paymentDate
-          }
-        })
+      if (!body.orderId || body.amount === undefined || body.amount === null || isNaN(body.amount)) {
+        return handleCORS(NextResponse.json(
+          { error: 'orderId and a numeric amount are required' },
+          { status: 400 }
+        ))
       }
 
-      // Update balance due
-      const order = await prisma.order.findUnique({
-        where: { id: body.orderId }
-      })
-      
-      if (order && order.finalPrice) {
-        const totalPaid = await prisma.payment.aggregate({
+      // Everything below is one transaction: the payment row, the order's running
+      // advance/balance totals, and the audit log all commit together or not at all.
+      // Previously these were separate calls — if the order-update step failed after the
+      // payment had already been inserted, the payment silently existed in the database
+      // while the order's displayed totals never moved, and Sales saw a failure toast for
+      // a save that had actually partially happened. A transaction makes that impossible:
+      // either the whole payment is recorded and reflected everywhere, or none of it is.
+      const payment = await prisma.$transaction(async (tx) => {
+        const created = await tx.payment.create({
+          data: {
+            orderId: body.orderId,
+            amount: body.amount,
+            paymentType: body.paymentType,
+            paymentMode: body.paymentMode,
+            transactionRef: body.transactionRef,
+            notes: body.notes,
+            paymentDate: body.paymentDate ? new Date(body.paymentDate) : new Date(),
+            recordedById: user.id
+          },
+          include: {
+            order: {
+              select: {
+                id: true,
+                jobNumber: true
+              }
+            },
+            recordedBy: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true
+              }
+            }
+          }
+        })
+
+        const order = await tx.order.findUnique({ where: { id: body.orderId } })
+        if (!order) {
+          throw new Error('Order not found')
+        }
+
+        // Recompute both totals from every payment on record for this order — summed fresh
+        // each time, never overwritten with just this one payment's amount. This is what
+        // makes a second advance instalment add to the first instead of replacing it.
+        const totalPaidAgg = await tx.payment.aggregate({
           where: { orderId: body.orderId },
           _sum: { amount: true }
         })
-        
-        const balanceDue = order.finalPrice - (totalPaid._sum.amount || 0)
-        
-        await prisma.order.update({
-          where: { id: body.orderId },
-          data: { balanceDue }
-        })
-      }
+        const totalPaid = totalPaidAgg._sum.amount || 0
 
-      await prisma.auditLog.create({
-        data: {
-          userId: user.id,
-          action: 'CREATE',
-          resource: 'Payment',
-          resourceId: payment.id,
-          changes: body
+        const orderUpdateData = {
+          balanceDue: order.finalPrice != null ? order.finalPrice - totalPaid : null
         }
+
+        if (body.paymentType === 'ADVANCE') {
+          const advanceAgg = await tx.payment.aggregate({
+            where: { orderId: body.orderId, paymentType: 'ADVANCE' },
+            _sum: { amount: true }
+          })
+          orderUpdateData.advanceAmountPaid = advanceAgg._sum.amount || 0
+          orderUpdateData.advanceDatePaid = order.advanceDatePaid || created.paymentDate
+        }
+
+        await tx.order.update({
+          where: { id: body.orderId },
+          data: orderUpdateData
+        })
+
+        await tx.auditLog.create({
+          data: {
+            userId: user.id,
+            action: 'CREATE',
+            resource: 'Payment',
+            resourceId: created.id,
+            changes: body
+          }
+        })
+
+        return created
       })
 
       return handleCORS(NextResponse.json(payment, { status: 201 }))

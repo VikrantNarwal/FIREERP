@@ -2,6 +2,80 @@
 
 ---
 
+## Phase 6 — Admin Urgent Flagging & Full Stage Visibility (Admin + Sales)
+**Status: ✅ Pushed to GitHub** — 2026-07-27
+**Commit:** `306d2de` — "Admin urgent flagging, stage progress view for admin and sales"
+**Repo:** VikrantNarwal/FIREERP
+**Live verification:** ⏳ Pending — Vercel deployment triggered by this push has not yet been
+confirmed "Ready" or smoke-tested live. Do that next (checklist below).
+
+### Why this phase happened
+BUILD_PLAN.md (an earlier planning doc) described Admin urgent-flagging and an Admin Orders
+page as already planned. Checked the actual repo before touching anything: `app/dashboard/admin/orders/page.jsx`
+**did not exist** and Admin's nav had no "Orders" link — that earlier plan was never actually
+implemented. Sales also had no way to see per-order production-stage detail, only the Phase 5
+"Total Orders" status modal. This phase built both, using backend permissions that already
+existed — no schema or API changes were needed.
+
+### What shipped
+- **New shared helper** `getStageProgress(stages)` + `stageLabel(stage)` added to `lib/utils.js`
+  — takes an order's `productionStages` array and returns completed count, remaining count,
+  the remaining stage list, and the next stage due. Used by every view below so the "what's
+  left" logic lives in one place instead of being re-derived per page.
+- **New page** `app/dashboard/admin/orders/page.jsx` (Admin nav now has an "Orders" tab, added
+  in `app/dashboard/layout.jsx`):
+  - Every order shows a mini progress bar (e.g. "12/20 stages complete · Next: Welding")
+  - **Mark URGENT** button + confirmation dialog → sets `priority: 'URGENT'` via the existing
+    `PUT /api/orders/:id` endpoint (already allowed `ADMIN` role, verified — no backend change)
+  - **Unflag** button (new — the older CEO-only version of this feature could mark urgent but
+    never remove the flag; added the reverse action since it's the same endpoint)
+  - Urgent orders auto-sort to the top of the list, get a red left border + red badge
+  - **View** opens full order detail: complete production stage list, a clearly labeled
+    "Remaining (N): ..." summary, and a per-stage status dropdown (Admin already has backend
+    permission to update stages via `PUT /api/production/stages/:id`, same as CEO)
+  - Priority filter dropdown + a clickable "Urgent" stat card that toggles the filter
+  - New "Overdue" badge/stat: flags orders where `promisedDate` has passed and status isn't
+    `DELIVERED`/`CANCELLED`/`CLOSED`
+  - Delete order (soft-delete) carried over from the same pattern as CEO's Orders page
+- **Sales dashboard** (`app/dashboard/sales/page.jsx`):
+  - Each order in "Recent Orders" now has a **View Status** button + the same stage progress bar
+  - Opens a **read-only** detail dialog: order status, priority, promised date (with overdue
+    flag), full stage list, and a "Remaining (N): ..." summary — deliberately no edit controls,
+    since Sales was asked to *see* status, not change it (backend also does not grant Sales
+    the production-stage-update permission, so this matches actual access)
+  - The existing "Total Orders" modal (shipped in Phase 5) now also shows stage progress and
+    urgent/overdue badges per order, not just the status badge
+- **Admin dashboard** (`app/dashboard/admin/page.jsx`): its own "Total Orders" modal got the
+  same stage-progress + urgent/overdue upgrade, for a quick glance without leaving the main
+  dashboard.
+
+### Safety measures taken
+- No database schema changes — this phase only touches frontend files (`.jsx`) and one shared
+  helper file (`lib/utils.js`); every action used already-existing, already-permissioned API
+  endpoints.
+- All 5 changed/new files were syntax-checked with `esbuild` before handing off, to catch JSX
+  errors before they reached `npm run build`.
+- Confirmed via `route.js` that `PUT /api/production/stages/:id` does **not** allow the `SALES`
+  role before deciding to make Sales' stage view read-only — this was a deliberate choice to
+  match existing backend access, not an oversight.
+
+### Follow-ups — do these next
+- [ ] Confirm the Vercel deployment from commit `306d2de` shows **Ready**, not
+      building/failed
+- [ ] Live smoke test: log in as Admin → `/dashboard/admin/orders` → confirm the "Orders" tab
+      appears in the nav and the page loads
+- [ ] Live smoke test: as Admin, open an order with production stages → confirm progress bar,
+      "Remaining" list, and that changing a stage's dropdown shows "Stage updated" and persists
+      after refresh
+- [ ] Live smoke test: as Admin, click **Mark URGENT** → confirm red badge + order jumps to top
+      of list → click **Unflag** → confirm it returns to NORMAL
+- [ ] Live smoke test: log in as Sales → click **View Status** on any order → confirm stage
+      list and "Remaining" summary appear, and confirm there is no way to edit a stage from
+      this view
+- [ ] Live smoke test: both Admin and Sales "Total Orders" modals show stage progress correctly
+
+---
+
 ## Phase 4 — Admin-Managed Products, Variants & Production Stages
 **Status: ✅ Deployed** — 2026-07-27
 **Commit:** `ba1cb18` — "Phase 4: admin-managed products, variants, and production stages"

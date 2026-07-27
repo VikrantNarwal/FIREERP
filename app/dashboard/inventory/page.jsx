@@ -22,6 +22,7 @@ export default function InventoryDashboard() {
   const [loading, setLoading] = useState(true)
   const [categories, setCategories] = useState([])
   const [products, setProducts] = useState([])
+  const [productFilter, setProductFilter] = useState('all')
 
   useEffect(() => {
     loadCategories()
@@ -116,7 +117,7 @@ export default function InventoryDashboard() {
       setShowEditDialog(false)
       loadComponents()
     } catch (error) {
-      toast.error('Failed to update component')
+      toast.error(error.message || 'Failed to update component')
     }
   }
 
@@ -134,7 +135,7 @@ export default function InventoryDashboard() {
       setAddForm(emptyForm)
       loadComponents()
     } catch (error) {
-      toast.error('Failed to add inventory item')
+      toast.error(error.message || 'Failed to add inventory item')
     }
   }
 
@@ -161,9 +162,18 @@ export default function InventoryDashboard() {
       setShowUrgentNoteDialog(false)
       setUrgentNote({ componentIds: [], message: '', priority: 'HIGH' })
     } catch (error) {
-      toast.error('Failed to send urgent note')
+      toast.error(error.message || 'Failed to send urgent note')
     }
   }
+
+  const lowStockCount = components.filter(c => c.currentStock <= c.reorderLevel).length
+  const criticalStockCount = components.filter(c => c.currentStock === 0).length
+
+  const filteredComponents = components.filter(c => {
+    if (productFilter === 'all') return true
+    if (productFilter === 'unassigned') return !c.productId
+    return c.productId === productFilter
+  })
 
   const generatePurchaseList = () => {
     const lowStock = components.filter(c => c.currentStock <= c.reorderLevel)
@@ -206,9 +216,6 @@ export default function InventoryDashboard() {
     a.click()
     toast.success('Purchase list generated')
   }
-
-  const lowStockCount = components.filter(c => c.currentStock <= c.reorderLevel).length
-  const criticalStockCount = components.filter(c => c.currentStock === 0).length
 
   if (loading) return <div className="text-white">Loading...</div>
 
@@ -274,8 +281,27 @@ export default function InventoryDashboard() {
 
       {/* Components Table */}
       <Card className="bg-slate-900 border-slate-800">
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-3">
           <CardTitle className="text-white">Component Inventory (Click Edit to modify all fields)</CardTitle>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-slate-400">Filter by product:</span>
+            <Select value={productFilter} onValueChange={setProductFilter}>
+              <SelectTrigger className="w-56 bg-slate-800 border-slate-700 text-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Products ({components.length})</SelectItem>
+                <SelectItem value="unassigned">
+                  Unassigned / General Stock ({components.filter(c => !c.productId).length})
+                </SelectItem>
+                {products.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name} ({components.filter(c => c.productId === p.id).length})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -297,7 +323,14 @@ export default function InventoryDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {components.map(component => (
+                {filteredComponents.length === 0 && (
+                  <tr>
+                    <td colSpan={12} className="p-6 text-center text-slate-500">
+                      No components for this filter.
+                    </td>
+                  </tr>
+                )}
+                {filteredComponents.map(component => (
                   <tr key={component.id} className="border-b border-slate-800 hover:bg-slate-800/50">
                     <td className="p-3 text-slate-300 font-mono text-xs">{component.code}</td>
                     <td className="p-3 text-white">{component.name}</td>

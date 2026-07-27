@@ -339,6 +339,7 @@ model Order {
   internalNotes     String?
   customerNotes     String?
   delayReason       String?
+  designMeasurements Json?              // { [preAssemblyVariableKey]: value } — fully dynamic, keys defined by Design via PreAssemblyVariable
   
   // Metadata
   createdAt         DateTime            @default(now())
@@ -712,4 +713,25 @@ model StageTemplateItem {
   template StageTemplate @relation(fields:[templateId], references:[id], onDelete:Cascade)
   @@index([templateId])
   @@map("stage_template_items")
+}
+
+// ==================== DESIGN-MANAGED PRE-ASSEMBLY MEASUREMENTS ====================
+// Design can create/rename/delete these freely (e.g. "Wooden Log Length", "Mirror Height").
+// Actual per-order values are stored on Order.designMeasurements as { [key]: value } —
+// no migration needed when Design adds or removes a field.
+
+model PreAssemblyVariable {
+  id          String   @id @default(uuid())
+  key         String   @unique   // stable machine key, e.g. "wooden_log_length" (auto-slugged from label)
+  label       String              // display label, e.g. "Wooden Log Length"
+  unit        String?             // free text, e.g. "mm", "cm", "inches"
+  group       String   @default("General")   // free text grouping, e.g. "Wooden Log", "Mirror"
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([group])
+  @@index([isActive])
+  @@map("pre_assembly_variables")
 }
