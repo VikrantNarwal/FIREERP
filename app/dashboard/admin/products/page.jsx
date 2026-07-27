@@ -107,10 +107,10 @@ export default function AdminProductsPage() {
                 </p>
               </div>
               <div className="flex gap-2">
-                <Button variant="ghost" size="sm" onClick={() => { setStageProduct(p); setStageDialogOpen(true) }}>
+                <Button variant="ghost" size="sm" className="text-slate-300 hover:text-white" onClick={() => { setStageProduct(p); setStageDialogOpen(true) }}>
                   <Settings2 className="w-4 h-4 mr-1" /> Stages
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => { setEditingProduct(p); setProductDialogOpen(true) }}>
+                <Button variant="ghost" size="sm" className="text-slate-300 hover:text-white" onClick={() => { setEditingProduct(p); setProductDialogOpen(true) }}>
                   <Pencil className="w-4 h-4" />
                 </Button>
                 <Button
@@ -215,12 +215,12 @@ function ProductDialog({ open, onOpenChange, product, variants, onSaved }) {
         <div className="space-y-4">
           <div>
             <label className="text-sm text-slate-400 block mb-1">Name</label>
-            <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="e.g. Electrical Fireplace — Premium" />
+            <Input className="bg-slate-800 border-slate-700 text-white" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="e.g. Electrical Fireplace — Premium" />
           </div>
           <div>
             <label className="text-sm text-slate-400 block mb-1">Variant</label>
             <Select value={form.variant} onValueChange={v => setForm({ ...form, variant: v })}>
-              <SelectTrigger><SelectValue placeholder="Select variant" /></SelectTrigger>
+              <SelectTrigger className="bg-slate-800 border-slate-700 text-white"><SelectValue placeholder="Select variant" /></SelectTrigger>
               <SelectContent>
                 {variants.filter(v => v.isActive).map(v => (
                   <SelectItem key={v.code} value={v.code}>{v.label}</SelectItem>
@@ -230,11 +230,11 @@ function ProductDialog({ open, onOpenChange, product, variants, onSaved }) {
           </div>
           <div>
             <label className="text-sm text-slate-400 block mb-1">Description</label>
-            <Textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
+            <Textarea className="bg-slate-800 border-slate-700 text-white" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
           </div>
           <div>
             <label className="text-sm text-slate-400 block mb-1">Base Price</label>
-            <Input type="number" value={form.basePrice} onChange={e => setForm({ ...form, basePrice: e.target.value })} />
+            <Input className="bg-slate-800 border-slate-700 text-white" type="number" value={form.basePrice} onChange={e => setForm({ ...form, basePrice: e.target.value })} />
           </div>
         </div>
         <DialogFooter>
@@ -309,7 +309,7 @@ function VariantDialog({ open, onOpenChange, variants, reload }) {
               <div className="flex items-center gap-2">
                 <span className="text-xs text-slate-500 font-mono">{v.code}</span>
                 {editingId === v.id ? (
-                  <Input className="h-7 w-40" value={editLabel} onChange={e => setEditLabel(e.target.value)} />
+                  <Input className="h-7 w-40 bg-slate-800 border-slate-700 text-white" value={editLabel} onChange={e => setEditLabel(e.target.value)} />
                 ) : (
                   <span className={v.isActive ? 'text-white' : 'text-slate-500 line-through'}>{v.label}</span>
                 )}
@@ -318,11 +318,11 @@ function VariantDialog({ open, onOpenChange, variants, reload }) {
                 {editingId === v.id ? (
                   <Button size="sm" onClick={() => saveRename(v.id)}>Save</Button>
                 ) : (
-                  <Button variant="ghost" size="sm" onClick={() => { setEditingId(v.id); setEditLabel(v.label) }}>
+                  <Button variant="ghost" size="sm" className="text-slate-300 hover:text-white" onClick={() => { setEditingId(v.id); setEditLabel(v.label) }}>
                     <Pencil className="w-3.5 h-3.5" />
                   </Button>
                 )}
-                <Button variant="ghost" size="sm" onClick={() => toggleActive(v)}>
+                <Button variant="ghost" size="sm" className="text-slate-300 hover:text-white" onClick={() => toggleActive(v)}>
                   {v.isActive ? 'Deactivate' : 'Activate'}
                 </Button>
                 <Button variant="ghost" size="sm" className="text-red-400" onClick={() => removeVariant(v)}>
@@ -334,8 +334,8 @@ function VariantDialog({ open, onOpenChange, variants, reload }) {
         </div>
 
         <div className="flex gap-2 pt-3 border-t border-slate-800">
-          <Input className="w-24" placeholder="CODE" value={newCode} onChange={e => setNewCode(e.target.value)} />
-          <Input placeholder="Display label" value={newLabel} onChange={e => setNewLabel(e.target.value)} />
+          <Input className="w-24 bg-slate-800 border-slate-700 text-white" placeholder="CODE" value={newCode} onChange={e => setNewCode(e.target.value)} />
+          <Input className="bg-slate-800 border-slate-700 text-white" placeholder="Display label" value={newLabel} onChange={e => setNewLabel(e.target.value)} />
           <Button onClick={addVariant}><Plus className="w-4 h-4" /></Button>
         </div>
       </DialogContent>
@@ -420,14 +420,14 @@ function StageDialog({ open, onOpenChange, product, onSaved }) {
                 <GripVertical className="w-4 h-4 text-slate-600 shrink-0" />
                 <span className="text-xs text-slate-500 w-5 shrink-0">{idx + 1}</span>
                 <Input
-                  className="h-7 flex-1"
+                  className="h-7 flex-1 bg-slate-800 border-slate-700 text-white"
                   value={s.label}
                   onChange={e => rename(idx, e.target.value)}
                 />
-                <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => move(idx, -1)} disabled={idx === 0}>
+                <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-300 hover:text-white" onClick={() => move(idx, -1)} disabled={idx === 0}>
                   <ArrowUp className="w-3.5 h-3.5" />
                 </Button>
-                <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => move(idx, 1)} disabled={idx === stages.length - 1}>
+                <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-300 hover:text-white" onClick={() => move(idx, 1)} disabled={idx === stages.length - 1}>
                   <ArrowDown className="w-3.5 h-3.5" />
                 </Button>
                 <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-400" onClick={() => remove(idx)}>
@@ -439,7 +439,7 @@ function StageDialog({ open, onOpenChange, product, onSaved }) {
         )}
 
         <div className="flex gap-2 pt-3 border-t border-slate-800">
-          <Input placeholder="New stage name, e.g. Mirror Polishing" value={newLabel} onChange={e => setNewLabel(e.target.value)}
+          <Input className="bg-slate-800 border-slate-700 text-white" placeholder="New stage name, e.g. Mirror Polishing" value={newLabel} onChange={e => setNewLabel(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && addStage()} />
           <Button variant="outline" onClick={addStage}><Plus className="w-4 h-4" /></Button>
         </div>
