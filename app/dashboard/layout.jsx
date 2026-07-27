@@ -95,6 +95,7 @@ export default function DashboardLayout({ children }) {
     ],
     ADMIN: [
       { label: 'Admin', icon: Settings, href: '/dashboard/admin' },
+      { label: 'Products', icon: Package, href: '/dashboard/admin/products' },
       { label: 'Profile', icon: Users, href: '/dashboard/profile' }
     ]
   }

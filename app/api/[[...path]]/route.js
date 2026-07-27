@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { getProductionStagesForProduct } from '@/lib/stageTemplates'
 import prisma from '@/lib/prisma'
 import { hashPassword, verifyPassword, generateAccessToken, generateRefreshToken, verifyRefreshToken, generate2FASecret, verify2FAToken } from '@/lib/auth'
 import { generateJobNumber } from '@/lib/jobNumberGenerator'
@@ -459,36 +460,15 @@ async function handleRoute(request, { params }) {
         }
       })
 
-      // Create initial production stages
-      const stages = [
-        { stage: 'DESIGN_APPROVED', sequence: 1 },
-        { stage: 'LASER_CUTTING', sequence: 2 },
-        { stage: 'BENDING', sequence: 3 },
-        { stage: 'WELDING', sequence: 4 },
-        { stage: 'GRINDING_BUFFING', sequence: 5 },
-        { stage: 'POWDER_COATING', sequence: 6 },
-        { stage: 'INCOMING_QC', sequence: 7 },
-        { stage: 'WOODEN_LOG_PREP', sequence: 8 },
-        { stage: 'FLAME_SHEET_PREP', sequence: 9 },
-        { stage: 'LIGHT_ASSEMBLY', sequence: 10 },
-        { stage: 'STEPPER_MOTOR_ASSEMBLY', sequence: 11 },
-        { stage: 'PCB_PREPARATION', sequence: 12 },
-        { stage: 'SPEAKER_ASSEMBLY', sequence: 13 },
-        { stage: 'HEATER_ASSEMBLY', sequence: 14 },
-        { stage: 'MAIN_ASSEMBLY', sequence: 15 },
-        { stage: 'FUNCTIONAL_TESTING', sequence: 16 },
-        { stage: 'BURN_IN_TEST', sequence: 17 },
-        { stage: 'FINAL_QC', sequence: 18 },
-        { stage: 'PACKAGING', sequence: 19 },
-        { stage: 'DISPATCH_READY', sequence: 20 }
-      ]
+   // Create initial production stages from this product's admin-defined template
+      const stageRows = await getProductionStagesForProduct(order.productId)
 
       await prisma.productionStage.createMany({
-        data: stages.map(s => ({
+        data: stageRows.map(s => ({
           orderId: order.id,
           stage: s.stage,
           sequence: s.sequence,
-          status: 'PENDING'
+          status: s.status
         }))
       })
 

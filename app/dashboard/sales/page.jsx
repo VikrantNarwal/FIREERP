@@ -18,6 +18,7 @@ export default function SalesDashboard() {
   const [orders, setOrders] = useState([])
   const [customers, setCustomers] = useState([])
   const [products, setProducts] = useState([])
+  const [variants, setVariants] = useState([])
   const [loading, setLoading] = useState(true)
   
   // Dialog states
@@ -71,14 +72,16 @@ export default function SalesDashboard() {
 
   const loadData = async () => {
     try {
-      const [ordersData, customersData, productsData] = await Promise.all([
+      const [ordersData, customersData, productsData, variantsRes] = await Promise.all([
         api.getOrders(),
         api.getCustomers(),
-        api.getProducts()
+        api.getProducts(),
+        api.get('/product-variants')
       ])
       setOrders(ordersData)
       setCustomers(customersData)
       setProducts(productsData)
+      setVariants(variantsRes.variants || [])
     } catch (error) {
       toast.error('Failed to load data')
     } finally {
@@ -345,10 +348,9 @@ export default function SalesDashboard() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="EF">E.F.</SelectItem>
-                        <SelectItem value="EFP">E.F.P.</SelectItem>
-                        <SelectItem value="EFH">E.F.H.</SelectItem>
-                        <SelectItem value="EFHP">E.F.H.P.</SelectItem>
+                        {variants.map(v => (
+                          <SelectItem key={v.code} value={v.code}>{v.label}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>

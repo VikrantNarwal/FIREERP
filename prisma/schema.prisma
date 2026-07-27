@@ -100,13 +100,6 @@ enum FireplaceType {
   ELECTRICAL_FIREPLACE
 }
 
-enum FireplaceVariant {
-  EF        // E.F.
-  EFP       // E.F.P.
-  EFH       // E.F.H.
-  EFHP      // E.F.H.P.
-}
-
 enum FlameColor {
   ORANGE
   BLUE
@@ -118,7 +111,7 @@ model Product {
   id                String              @id @default(uuid())
   name              String
   type              FireplaceType
-  variant           FireplaceVariant
+  variant           String
   description       String?
   basePrice         Float?
   createdAt         DateTime            @default(now())
@@ -128,11 +121,10 @@ model Product {
   boms              BOM[]
   orders            Order[]
   components        Component[]
-  
-  @@unique([type, variant])
+  stageTemplate     StageTemplate?
+
   @@map("products")
 }
-
 // ==================== BOM (Bill of Materials) ====================
 
 model BOM {
@@ -308,7 +300,7 @@ model Order {
   
   // Product Configuration
   fireplaceType     FireplaceType
-  variant           FireplaceVariant
+  variant           String
   dimensions        Json?               // {width, height, depth}
   flameColor        FlameColor?
   soundOption       Boolean             @default(false)
@@ -379,34 +371,6 @@ model Order {
 
 // ==================== PRODUCTION MANAGEMENT ====================
 
-enum ProductionStageType {
-  DESIGN_APPROVED
-  LASER_CUTTING
-  BENDING
-  WELDING
-  GRINDING_BUFFING
-  POWDER_COATING
-  INCOMING_QC
-  WOODEN_LOG_PREP
-  FLAME_SHEET_PREP
-  LIGHT_ASSEMBLY
-  STEPPER_MOTOR_ASSEMBLY
-  PCB_PREPARATION
-  SPEAKER_ASSEMBLY
-  HEATER_ASSEMBLY
-  MAIN_ASSEMBLY
-  FUNCTIONAL_TESTING
-  BURN_IN_TEST
-  FINAL_QC
-  PACKAGING
-  DISPATCH_READY
-  DISPATCHED
-  DELIVERED
-  INSTALLATION_PENDING
-  INSTALLED
-  CLOSED
-}
-
 enum StageStatus {
   PENDING
   IN_PROGRESS
@@ -419,7 +383,7 @@ enum StageStatus {
 model ProductionStage {
   id                String              @id @default(uuid())
   orderId           String
-  stage             ProductionStageType
+  stage             String
   status            StageStatus         @default(PENDING)
   sequence          Int
   
@@ -472,7 +436,7 @@ model QCInspection {
   id                String              @id @default(uuid())
   orderId           String
   type              InspectionType
-  stage             ProductionStageType?
+  stage             String?
   inspectorId       String
   
   checklist         Json                // Inspection checklist
@@ -713,4 +677,39 @@ model AuditLog {
   @@index([resource])
   @@index([timestamp])
   @@map("audit_logs")
+}
+
+// ==================== ADMIN-MANAGED VARIANT CATALOG ====================
+
+model ProductVariantOption {
+  id String @id @default(uuid())
+  code String @unique
+  label String
+  isActive Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("product_variant_options")
+}
+
+model StageTemplate {
+  id String @id @default(uuid())
+  productId String @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  product Product @relation(fields:[productId], references:[id], onDelete:Cascade)
+  items StageTemplateItem[]
+  @@map("stage_templates")
+}
+
+model StageTemplateItem {
+  id String @id @default(uuid())
+  templateId String
+  stageKey String
+  label String
+  sequence Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  template StageTemplate @relation(fields:[templateId], references:[id], onDelete:Cascade)
+  @@index([templateId])
+  @@map("stage_template_items")
 }
