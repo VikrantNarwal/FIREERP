@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Users, Package, AlertCircle, Activity, Wrench, MessageSquare, Plus, Clock } from 'lucide-react'
+import { Users, Package, AlertCircle, Activity, Wrench, MessageSquare, Plus, Clock, Download, ListChecks } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/api'
 import { formatDistanceToNow } from 'date-fns'
@@ -22,7 +22,9 @@ export default function AdminDashboard() {
   const [complaints, setComplaints] = useState([])
   const [showRepairDialog, setShowRepairDialog] = useState(false)
   const [showComplaintDialog, setShowComplaintDialog] = useState(false)
-  
+  const [showOrdersModal, setShowOrdersModal] = useState(false)
+  const [downloading, setDownloading] = useState(false)
+
   const [newRepair, setNewRepair] = useState({
     orderId: '',
     repairType: '',
@@ -110,6 +112,31 @@ export default function AdminDashboard() {
     setNewComplaint({ orderId: '', customerName: '', issue: '', severity: 'MEDIUM' })
   }
 
+  const handleDownloadReport = async () => {
+    setDownloading(true)
+    try {
+      const token = localStorage.getItem('accessToken')
+      const res = await fetch('/api/admin/reports/export', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (!res.ok) throw new Error('Export failed')
+      const blob = await res.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `orders-report-${new Date().toISOString().slice(0, 10)}.txt`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+      toast.success('Report downloaded')
+    } catch (err) {
+      toast.error('Could not download report')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   const getTodayOrders = () => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -129,6 +156,10 @@ export default function AdminDashboard() {
           <p className="text-slate-400 mt-1">System administration and team monitoring</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" className="gap-2" onClick={handleDownloadReport} disabled={downloading}>
+            <Download className="w-4 h-4" />
+            {downloading ? 'Preparing…' : 'Download Report'}
+          </Button>
           <Dialog open={showRepairDialog} onOpenChange={setShowRepairDialog}>
             <DialogTrigger asChild>
               <Button className="gap-2 bg-orange-600 hover:bg-orange-700">
@@ -257,12 +288,16 @@ export default function AdminDashboard() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-slate-900 border-slate-800">
+        <Card
+          className="bg-slate-900 border-slate-800 cursor-pointer hover:border-blue-500/50 transition-colors"
+          onClick={() => setShowOrdersModal(true)}
+        >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Total Orders</p>
                 <p className="text-3xl font-bold text-white">{stats?.totalOrders || 0}</p>
+                <p className="text-xs text-blue-400 mt-1">Click to view all statuses</p>
               </div>
               <Package className="w-8 h-8 text-blue-400" />
             </div>
@@ -439,6 +474,33 @@ export default function AdminDashboard() {
           </div>
         </CardContent>
       </Card>
+
+      {/* All Orders Status Modal */}
+      <Dialog open={showOrdersModal} onOpenChange={setShowOrdersModal}>
+        <DialogContent className="bg-slate-900 border-slate-800 text-white max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ListChecks className="w-5 h-5" /> All Orders — Status
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+            {orders.map(order => (
+              <div key={order.id} className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg">
+                <div>
+                  <p className="text-white font-medium">{order.jobNumber}</p>
+                  <p className="text-xs text-slate-400">
+                    {order.customer?.name} · {order.product?.name}
+                  </p>
+                </div>
+                <Badge>{order.status}</Badge>
+              </div>
+            ))}
+            {orders.length === 0 && (
+              <p className="text-center text-slate-400 py-8">No orders yet</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -27,6 +27,7 @@ export default function SalesDashboard() {
   const [showPaymentDialog, setShowPaymentDialog] = useState(false)
   const [showQuotationDialog, setShowQuotationDialog] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState(null)
+  const [showOrdersModal, setShowOrdersModal] = useState(false)
   
   // New Order State
   const [newOrder, setNewOrder] = useState({
@@ -435,12 +436,16 @@ export default function SalesDashboard() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-slate-900 border-slate-800">
+        <Card
+          className="bg-slate-900 border-slate-800 cursor-pointer hover:border-blue-500/50 transition-colors"
+          onClick={() => setShowOrdersModal(true)}
+        >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Total Orders</p>
                 <p className="text-3xl font-bold text-white">{stats.totalOrders}</p>
+                <p className="text-xs text-blue-400 mt-1">Click to view all statuses</p>
               </div>
               <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
                 <Package className="w-6 h-6 text-white" />
@@ -678,6 +683,29 @@ export default function SalesDashboard() {
             <Button onClick={handleUploadQuotation} className="w-full">
               Upload Quotation
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* All Orders Status Modal */}
+      <Dialog open={showOrdersModal} onOpenChange={setShowOrdersModal}>
+        <DialogContent className="bg-slate-900 border-slate-800 text-white max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>All Orders — Status</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+            {orders.map(order => (
+              <div key={order.id} className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg">
+                <div>
+                  <p className="text-white font-medium">{order.jobNumber}</p>
+                  <p className="text-xs text-slate-400">{order.customer?.name}</p>
+                </div>
+                <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
+              </div>
+            ))}
+            {orders.length === 0 && (
+              <p className="text-center text-slate-400 py-8">No orders yet</p>
+            )}
           </div>
         </DialogContent>
       </Dialog>
