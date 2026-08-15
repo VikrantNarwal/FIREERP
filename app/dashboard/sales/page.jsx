@@ -14,7 +14,7 @@ import { Progress } from '@/components/ui/progress'
 import { toast } from 'sonner'
 import api from '@/lib/api'
 import { formatDistanceToNow } from 'date-fns'
-import { getStageProgress, stageLabel } from '@/lib/utils'
+import { getStageProgress, stageLabel, DIMENSION_UNITS, formatDimensions, formatQuantity } from '@/lib/utils'
 
 export default function SalesDashboard() {
   const [orders, setOrders] = useState([])
@@ -40,6 +40,7 @@ export default function SalesDashboard() {
     width: '',
     height: '',
     depth: '',
+    unit: 'cm',
     price: '',
     quantity: 1,
     promisedDate: '',
@@ -133,7 +134,8 @@ export default function SalesDashboard() {
         dimensions: {
           width: parseFloat(newOrder.width) || 0,
           height: parseFloat(newOrder.height) || 0,
-          depth: parseFloat(newOrder.depth) || 0
+          depth: parseFloat(newOrder.depth) || 0,
+          unit: newOrder.unit
         },
         quantity: quantity,
         unitPrice: price,
@@ -143,10 +145,15 @@ export default function SalesDashboard() {
         notes: newOrder.notes
       }
 
-      await api.createOrder(orderData)
+      const created = await api.createOrder(orderData)
       toast.success('Order created successfully!')
       setShowNewOrderDialog(false)
-      loadData()
+      // The API now returns the complete order (customer, product, salesPerson,
+      // productionStages already included) — merge it straight into state instead
+      // of re-fetching orders+customers+products+variants. Customers/products/variants
+      // don't change when an order is created, so that reload was pure waste at the
+      // exact moment a sales person is waiting on the dialog to close.
+      setOrders(prev => [created, ...prev])
       setNewOrder({
         customerId: '',
         productId: '',
@@ -154,6 +161,7 @@ export default function SalesDashboard() {
         width: '',
         height: '',
         depth: '',
+        unit: 'cm',
         price: '',
         quantity: 1,
         promisedDate: '',
@@ -374,9 +382,24 @@ export default function SalesDashboard() {
                   </div>
                 </div>
 
+                <div>
+                  <Label>Measurement Unit *</Label>
+                  <Select value={newOrder.unit} onValueChange={(value) => setNewOrder({ ...newOrder, unit: value })}>
+                    <SelectTrigger className="bg-slate-800 border-slate-700">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DIMENSION_UNITS.map(u => (
+                        <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-slate-500 mt-1">Applies to Width, Height and Depth below — Design and Production will see this exact unit.</p>
+                </div>
+
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <Label>Width (cm)</Label>
+                    <Label>Width ({newOrder.unit})</Label>
                     <Input
                       type="number"
                       value={newOrder.width}
@@ -385,7 +408,7 @@ export default function SalesDashboard() {
                     />
                   </div>
                   <div>
-                    <Label>Height (cm)</Label>
+                    <Label>Height ({newOrder.unit})</Label>
                     <Input
                       type="number"
                       value={newOrder.height}
@@ -394,7 +417,7 @@ export default function SalesDashboard() {
                     />
                   </div>
                   <div>
-                    <Label>Depth (cm)</Label>
+                    <Label>Depth ({newOrder.unit})</Label>
                     <Input
                       type="number"
                       value={newOrder.depth}
@@ -539,6 +562,8 @@ export default function SalesDashboard() {
                       </div>
                       <div className="flex items-center gap-4 text-sm text-slate-400 mb-2">
                         <span>{order.customer?.name}</span>
+                        <span>•</span>
+                        <span>Qty: {formatQuantity(order.quantity)}</span>
                         <span>•</span>
                         <span>₹{order.finalPrice}</span>
                         {order.balanceDue !== null && order.balanceDue !== undefined && (
@@ -749,7 +774,7 @@ export default function SalesDashboard() {
                         <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/50 text-[10px]">OVERDUE</Badge>
                       )}
                     </div>
-                    <p className="text-xs text-slate-400">{order.customer?.name}</p>
+                    <p className="text-xs text-slate-400">{order.customer?.name} · Qty: {formatQuantity(order.quantity)}</p>
                     {progress.total > 0 && (
                       <p className="text-xs text-slate-500 mt-1">
                         {progress.completedCount}/{progress.total} stages
@@ -789,6 +814,19 @@ export default function SalesDashboard() {
                       {selectedOrder.priority}
                     </Badge>
                   </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-slate-400 text-sm">Quantity</p>
+                    <p className="text-white font-semibold">{formatQuantity(selectedOrder.quantity)}</p>
+                  </div>
+                  {formatDimensions(selectedOrder.dimensions) && (
+                    <div>
+                      <p className="text-slate-400 text-sm">Dimensions</p>
+                      <p className="text-white">{formatDimensions(selectedOrder.dimensions)}</p>
+                    </div>
+                  )}
                 </div>
 
                 {selectedOrder.promisedDate && (

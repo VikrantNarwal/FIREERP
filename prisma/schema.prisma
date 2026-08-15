@@ -367,6 +367,13 @@ model Order {
   @@index([priority])
   @@index([customerId])
   @@index([salesPersonId])
+  // GET /api/orders (every dashboard, on every load, plus Production's 30s poll)
+  // always filters WHERE deletedAt IS NULL and sorts ORDER BY createdAt DESC —
+  // this compound index covers both in one lookup instead of a full table scan.
+  @@index([deletedAt, createdAt])
+  // generateJobNumber() counts orders WHERE orderDate >= start-of-month on every
+  // single order creation — was previously unindexed.
+  @@index([orderDate])
   @@map("orders")
 }
 

@@ -420,7 +420,14 @@ async function handleRoute(request, { params }) {
       if (denied) return handleCORS(denied)
 
       const body = await request.json()
-      const jobNumber = await generateJobNumber()
+
+      // These two only depend on inputs we already have (the clock, and
+      // body.productId) — neither depends on the other's result, so run them
+      // as one concurrent round trip instead of two sequential ones.
+      const [jobNumber, stageRows] = await Promise.all([
+        generateJobNumber(),
+        getProductionStagesForProduct(body.productId)
+      ])
 
       // Create order
       const order = await prisma.order.create({
@@ -460,27 +467,32 @@ async function handleRoute(request, { params }) {
         }
       })
 
-   // Create initial production stages from this product's admin-defined template
-      const stageRows = await getProductionStagesForProduct(order.productId)
+      // Create initial production stages from this product's admin-defined template,
+      // and the audit log entry — both only need order.id and user.id (already have
+      // both), so these are independent of each other and can run concurrently too.
+      await Promise.all([
+        prisma.productionStage.createMany({
+          data: stageRows.map(s => ({
+            orderId: order.id,
+            stage: s.stage,
+            sequence: s.sequence,
+            status: s.status
+          }))
+        }),
+        prisma.auditLog.create({
+          data: {
+            userId: user.id,
+            action: 'CREATE',
+            resource: 'Order',
+            resourceId: order.id
+          }
+        })
+      ])
 
-      await prisma.productionStage.createMany({
-        data: stageRows.map(s => ({
-          orderId: order.id,
-          stage: s.stage,
-          sequence: s.sequence,
-          status: s.status
-        }))
-      })
-
-      // Create audit log
-      await prisma.auditLog.create({
-        data: {
-          userId: user.id,
-          action: 'CREATE',
-          resource: 'Order',
-          resourceId: order.id
-        }
-      })
+      // Prisma's createMany doesn't return the created rows, but we already know
+      // exactly what was written (same stageRows used above) — attaching them here
+      // lets the frontend render the complete order immediately without a refetch.
+      order.productionStages = stageRows
 
       return handleCORS(NextResponse.json(order, { status: 201 }))
     }

@@ -13,6 +13,7 @@ import prisma from '@/lib/prisma'
 // will NOT work here. See the button wiring in the admin dashboard for the correct approach.
 
 import { verifyAccessToken } from '@/lib/auth'
+import { formatDimensions } from '@/lib/utils'
 
 function verifyAuth(request) {
   const authHeader = request.headers.get('authorization')
@@ -62,6 +63,9 @@ export async function GET(request) {
     lines.push('')
     lines.push('Product:')
     lines.push(`  ${o.product?.name || '—'}  (Variant: ${o.variant || '—'}, Qty: ${o.quantity})`)
+    if (formatDimensions(o.dimensions)) {
+      lines.push(`  Dimensions: ${formatDimensions(o.dimensions)}`)
+    }
     lines.push('')
     lines.push('Dates:')
     lines.push(`  Order Date:      ${fmtDate(o.orderDate)}`)

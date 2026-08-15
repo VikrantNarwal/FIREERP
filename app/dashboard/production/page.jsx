@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertCircle, CheckCircle, Ruler } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/api'
-import { getStageProgress, stageLabel } from '@/lib/utils'
+import { getStageProgress, stageLabel, formatQuantity, formatDimensions } from '@/lib/utils'
 
 export default function ProductionDashboard() {
   const [orders, setOrders] = useState([])
@@ -147,7 +147,10 @@ export default function ProductionDashboard() {
                 <div key={order.id} className="p-3 bg-slate-900 rounded-lg border border-red-500/50">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-white font-semibold">{order.jobNumber}</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-white font-semibold">{order.jobNumber}</h3>
+                        <Badge variant="secondary" className="text-xs">Qty: {formatQuantity(order.quantity)}</Badge>
+                      </div>
                       <p className="text-sm text-slate-400">{order.customer?.name}</p>
                     </div>
                     <Button
@@ -186,8 +189,12 @@ export default function ProductionDashboard() {
                           <Badge className="bg-red-500 text-white animate-pulse">VERY URGENT</Badge>
                         )}
                         <Badge variant="outline">{order.status}</Badge>
+                        <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/50">Qty: {formatQuantity(order.quantity)}</Badge>
                       </div>
-                      <p className="text-sm text-slate-400 mb-2">{order.customer?.name} - {order.product?.name}</p>
+                      <p className="text-sm text-slate-400 mb-2">
+                        {order.customer?.name} - {order.product?.name}
+                        {formatDimensions(order.dimensions) && ` · ${formatDimensions(order.dimensions)}`}
+                      </p>
 
                       {/* Progress Bar — driven by the order's real stage rows */}
                       <div className="mb-2">
@@ -259,6 +266,16 @@ export default function ProductionDashboard() {
 
             return (
               <div className="space-y-6">
+                {/* Quantity — the exact screen a production worker acts from, so this
+                    has to be impossible to miss. */}
+                <div className="flex items-center justify-between p-3 bg-cyan-500/10 border border-cyan-500/30 rounded-lg">
+                  <span className="text-cyan-400 font-medium">Quantity Required</span>
+                  <span className="text-white text-xl font-bold">{formatQuantity(selectedOrder.quantity)}</span>
+                </div>
+                {formatDimensions(selectedOrder.dimensions) && (
+                  <p className="text-sm text-slate-400 -mt-4">Dimensions: {formatDimensions(selectedOrder.dimensions)}</p>
+                )}
+
                 {/* Sales Notes */}
                 {selectedOrder.notes && (
                   <div className="p-4 bg-slate-800 border border-slate-700 rounded">

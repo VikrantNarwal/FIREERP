@@ -11,6 +11,7 @@ import { Package, Search, Trash2, Eye, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/api'
 import { formatDistanceToNow } from 'date-fns'
+import { formatQuantity, formatDimensions } from '@/lib/utils'
 
 export default function CEOOrders() {
   const [orders, setOrders] = useState([])
@@ -201,6 +202,7 @@ export default function CEOOrders() {
                       <h3 className="text-white font-semibold text-lg">{order.jobNumber}</h3>
                       <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
                       <Badge className={getPriorityColor(order.priority)}>{order.priority}</Badge>
+                      <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/50">Qty: {formatQuantity(order.quantity)}</Badge>
                     </div>
                     <div className="flex items-center gap-4 text-sm text-slate-400">
                       <span>{order.customer?.name}</span>
@@ -286,6 +288,18 @@ export default function CEOOrders() {
                   <p className="text-sm text-slate-400">Product</p>
                   <p className="text-white">{selectedOrder.product?.name}</p>
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-slate-400">Quantity</p>
+                  <p className="text-white font-semibold">{formatQuantity(selectedOrder.quantity)}</p>
+                </div>
+                {formatDimensions(selectedOrder.dimensions) && (
+                  <div>
+                    <p className="text-sm text-slate-400">Dimensions</p>
+                    <p className="text-white">{formatDimensions(selectedOrder.dimensions)}</p>
+                  </div>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>

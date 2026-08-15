@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Ruler, CheckCircle, Clock, AlertCircle, Settings, Plus, Trash2, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/api'
+import { getDimensionUnit, formatQuantity } from '@/lib/utils'
 
 const emptyVariableForm = { id: null, label: '', unit: '', group: 'General' }
 
@@ -249,10 +250,11 @@ export default function DesignDashboard() {
                       <p className="text-sm text-slate-400 mb-2">{order.customer?.name}</p>
                       <div className="flex items-center justify-between text-xs text-slate-500">
                         <span>{order.variant}</span>
+                        <Badge variant="secondary" className="text-xs">Qty: {formatQuantity(order.quantity)}</Badge>
                       </div>
                       {order.dimensions && (
                         <div className="mt-2 text-xs text-slate-400">
-                          {order.dimensions.width}W × {order.dimensions.height}H × {order.dimensions.depth}D
+                          {order.dimensions.width}W × {order.dimensions.height}H × {order.dimensions.depth}D {getDimensionUnit(order.dimensions)}
                         </div>
                       )}
                     </div>
@@ -285,18 +287,23 @@ export default function DesignDashboard() {
                 </div>
               </div>
 
+              <div className="p-3 bg-cyan-500/10 border border-cyan-500/30 rounded-lg">
+                <Label className="text-cyan-400">Quantity Required</Label>
+                <p className="text-white text-xl font-bold">{formatQuantity(selectedOrder.quantity)}</p>
+              </div>
+
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <Label className="text-slate-400">Width</Label>
-                  <p className="text-white">{selectedOrder.dimensions?.width || 0} mm</p>
+                  <p className="text-white">{selectedOrder.dimensions?.width || 0} {getDimensionUnit(selectedOrder.dimensions)}</p>
                 </div>
                 <div>
                   <Label className="text-slate-400">Height</Label>
-                  <p className="text-white">{selectedOrder.dimensions?.height || 0} mm</p>
+                  <p className="text-white">{selectedOrder.dimensions?.height || 0} {getDimensionUnit(selectedOrder.dimensions)}</p>
                 </div>
                 <div>
                   <Label className="text-slate-400">Depth</Label>
-                  <p className="text-white">{selectedOrder.dimensions?.depth || 0} mm</p>
+                  <p className="text-white">{selectedOrder.dimensions?.depth || 0} {getDimensionUnit(selectedOrder.dimensions)}</p>
                 </div>
               </div>
 

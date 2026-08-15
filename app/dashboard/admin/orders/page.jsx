@@ -13,7 +13,7 @@ import { Package, Search, Trash2, Eye, AlertTriangle, ShieldOff, Clock } from 'l
 import { toast } from 'sonner'
 import api from '@/lib/api'
 import { formatDistanceToNow } from 'date-fns'
-import { getStageProgress, stageLabel } from '@/lib/utils'
+import { getStageProgress, stageLabel, formatQuantity, formatDimensions } from '@/lib/utils'
 
 export default function AdminOrders() {
   const [orders, setOrders] = useState([])
@@ -253,6 +253,7 @@ export default function AdminOrders() {
                         <h3 className="text-white font-semibold text-lg">{order.jobNumber}</h3>
                         <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
                         <Badge className={getPriorityColor(order.priority)}>{order.priority}</Badge>
+                        <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/50">Qty: {formatQuantity(order.quantity)}</Badge>
                         {isOverdue(order) && (
                           <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/50">OVERDUE</Badge>
                         )}
@@ -374,6 +375,18 @@ export default function AdminOrders() {
                   <p className="text-sm text-slate-400">Product</p>
                   <p className="text-white">{selectedOrder.product?.name} {selectedOrder.variant}</p>
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-slate-400">Quantity</p>
+                  <p className="text-white font-semibold">{formatQuantity(selectedOrder.quantity)}</p>
+                </div>
+                {formatDimensions(selectedOrder.dimensions) && (
+                  <div>
+                    <p className="text-sm text-slate-400">Dimensions</p>
+                    <p className="text-white">{formatDimensions(selectedOrder.dimensions)}</p>
+                  </div>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
