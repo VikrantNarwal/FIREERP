@@ -7,10 +7,10 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { AlertCircle, CheckCircle, Ruler } from 'lucide-react'
+import { AlertCircle, CheckCircle, Ruler, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/api'
-import { getStageProgress, stageLabel, formatQuantity, formatDimensions } from '@/lib/utils'
+import { getStageProgress, stageLabel, formatQuantity, formatDimensions, formatDate, remakeReasonLabel } from '@/lib/utils'
 
 export default function ProductionDashboard() {
   const [orders, setOrders] = useState([])
@@ -29,8 +29,11 @@ export default function ProductionDashboard() {
   const loadOrders = async () => {
     try {
       const data = await api.getOrders()
+      // Normal in-flight orders, PLUS any already-dispatched order Sales has
+      // flagged for a remake (transport/manufacturing defect) — those need to
+      // come back into Production's queue even though they left QC long ago.
       const productionOrders = (data || []).filter(o =>
-        ['APPROVED', 'IN_PRODUCTION', 'QC_PENDING', 'QC_PASSED'].includes(o.status)
+        ['APPROVED', 'IN_PRODUCTION', 'QC_PENDING', 'QC_PASSED'].includes(o.status) || o.needsRemake
       )
       setOrders(productionOrders)
       // Keep the open dialog's data in sync with the latest fetch (e.g. after a stage update)
@@ -132,6 +135,42 @@ export default function ProductionDashboard() {
         </Card>
       </div>
 
+      {/* Remake Orders — flagged by Sales after dispatch due to a transport or
+          manufacturing defect. Surfaced the same way Urgent orders are. */}
+      {orders.filter(o => o.needsRemake).length > 0 && (
+        <Card className="bg-orange-500/10 border-orange-500/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-orange-400">
+              <RefreshCw className="w-5 h-5" />
+              Orders Needing Remake
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {orders.filter(o => o.needsRemake).map(order => (
+                <div key={order.id} className="p-3 bg-slate-900 rounded-lg border border-orange-500/50">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-white font-semibold">{order.jobNumber}</h3>
+                        <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/50">
+                          {remakeReasonLabel(order.remakeReason)}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-slate-400">{order.customer?.name}</p>
+                      {order.remakeNotes && <p className="text-xs text-slate-500 mt-1">{order.remakeNotes}</p>}
+                    </div>
+                    <Button size="sm" className="bg-orange-600 hover:bg-orange-700" onClick={() => { setSelectedOrder(order); setShowStageDialog(true) }}>
+                      Work on This
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Urgent Orders Section */}
       {orders.filter(o => o.priority === 'URGENT').length > 0 && (
         <Card className="bg-red-500/10 border-red-500/50">
@@ -194,6 +233,11 @@ export default function ProductionDashboard() {
                       <p className="text-sm text-slate-400 mb-2">
                         {order.customer?.name} - {order.product?.name}
                         {formatDimensions(order.dimensions) && ` · ${formatDimensions(order.dimensions)}`}
+                      </p>
+                      {/* Set by Sales — read-only here, including for old orders (Order
+                          Placement Date has always existed; Dispatch Date fills in once set). */}
+                      <p className="text-xs text-slate-500 mb-2">
+                        Placed: {formatDate(order.orderDate)} · Dispatch: {formatDate(order.dispatchDate)}
                       </p>
 
                       {/* Progress Bar — driven by the order's real stage rows */}
@@ -274,6 +318,18 @@ export default function ProductionDashboard() {
                 </div>
                 {formatDimensions(selectedOrder.dimensions) && (
                   <p className="text-sm text-slate-400 -mt-4">Dimensions: {formatDimensions(selectedOrder.dimensions)}</p>
+                )}
+                <p className="text-sm text-slate-400 -mt-4">
+                  Placed: {formatDate(selectedOrder.orderDate)} · Dispatch: {formatDate(selectedOrder.dispatchDate)}
+                </p>
+                {selectedOrder.needsRemake && (
+                  <div className="p-3 bg-orange-500/10 border border-orange-500/40 rounded flex items-start gap-2">
+                    <RefreshCw className="w-4 h-4 text-orange-400 mt-0.5" />
+                    <div>
+                      <p className="text-orange-400 text-sm font-medium">Remake needed — {remakeReasonLabel(selectedOrder.remakeReason)}</p>
+                      {selectedOrder.remakeNotes && <p className="text-xs text-slate-400 mt-1">{selectedOrder.remakeNotes}</p>}
+                    </div>
+                  </div>
                 )}
 
                 {/* Sales Notes */}

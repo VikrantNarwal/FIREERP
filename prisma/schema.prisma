@@ -273,6 +273,11 @@ enum OrderPriority {
   HIGH
   URGENT
 }
+
+enum RemakeReason {
+  TRANSPORT_DAMAGE
+  MANUFACTURING_DEFECT
+}
 enum InventoryOptionType {
   CATEGORY
   UNIT
@@ -328,6 +333,16 @@ model Order {
   actualEndDate     DateTime?
   deliveryDate      DateTime?
   installationDate  DateTime?
+  dispatchDate      DateTime?           // set by Sales; visible read-only to Design & Production
+  
+  // Dispatch / Delivery Outcome — set by Sales after DISPATCHED, so Production
+  // knows if a unit must be remade due to a transport or manufacturing defect.
+  deliveredSafely   Boolean?            // null = not yet known, true = safe, false = damaged
+  customerReviewRating Int?             // 1-5
+  customerReviewNotes  String?
+  needsRemake       Boolean             @default(false)
+  remakeReason      RemakeReason?
+  remakeNotes       String?
   
   // Team Assignment
   salesPersonId     String
@@ -374,6 +389,8 @@ model Order {
   // generateJobNumber() counts orders WHERE orderDate >= start-of-month on every
   // single order creation — was previously unindexed.
   @@index([orderDate])
+  @@index([dispatchDate])
+  @@index([needsRemake])
   @@map("orders")
 }
 

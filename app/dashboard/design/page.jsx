@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Ruler, CheckCircle, Clock, AlertCircle, Settings, Plus, Trash2, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/api'
-import { getDimensionUnit, formatQuantity } from '@/lib/utils'
+import { getDimensionUnit, formatQuantity, formatDate } from '@/lib/utils'
 
 const emptyVariableForm = { id: null, label: '', unit: '', group: 'General' }
 
@@ -284,6 +284,18 @@ export default function DesignDashboard() {
                 <div>
                   <Label className="text-slate-400">Customer</Label>
                   <p className="text-white">{selectedOrder.customer?.name}</p>
+                </div>
+              </div>
+
+              {/* Set by Sales — read-only here. Dispatch Date stays blank until dispatched. */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-slate-400">Order Placement Date</Label>
+                  <p className="text-white">{formatDate(selectedOrder.orderDate)}</p>
+                </div>
+                <div>
+                  <Label className="text-slate-400">Dispatch Date</Label>
+                  <p className="text-white">{formatDate(selectedOrder.dispatchDate)}</p>
                 </div>
               </div>
 

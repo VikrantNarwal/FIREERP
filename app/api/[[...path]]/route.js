@@ -30,6 +30,33 @@ function verifyAuth(request) {
   return verifyAccessToken(token)
 }
 
+// Order date-typed fields — HTML date inputs send plain strings (or '' when
+// cleared), so these need normalizing to Date|null before Prisma sees them.
+const ORDER_DATE_FIELDS = [
+  'orderDate', 'requiredDate', 'promisedDate', 'actualStartDate', 'actualEndDate',
+  'deliveryDate', 'installationDate', 'dispatchDate', 'designApprovedAt', 'advanceDatePaid'
+]
+
+// Sales owns order edits, including backfilling dispatch/dates on old orders
+// and the post-dispatch outcome (customer review, safe-delivery, remake flag).
+// This normalizes whatever the client sent into values Prisma will accept.
+function sanitizeOrderUpdate(body) {
+  const data = { ...body }
+  for (const field of ORDER_DATE_FIELDS) {
+    if (field in data) data[field] = data[field] ? new Date(data[field]) : null
+  }
+  if ('customerReviewRating' in data && data.customerReviewRating !== null) {
+    data.customerReviewRating = Math.min(5, Math.max(1, Number(data.customerReviewRating) || 1))
+  }
+  // A remake flag with no reason is meaningless to Production — and clearing
+  // the flag should clear any stale reason/notes from a previous defect.
+  if (data.needsRemake === false) {
+    data.remakeReason = null
+    data.remakeNotes = null
+  }
+  return data
+}
+
 // Helper to check role permissions
 function requireRole(user, allowedRoles) {
   if (!user) {
@@ -508,7 +535,7 @@ async function handleRoute(request, { params }) {
 
       const order = await prisma.order.update({
         where: { id: orderId },
-        data: body,
+        data: sanitizeOrderUpdate(body),
         include: {
           customer: true,
           product: true,

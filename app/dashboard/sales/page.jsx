@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Package, DollarSign, FileText, Upload, Receipt, Eye } from 'lucide-react'
+import { Plus, Package, DollarSign, FileText, Upload, Receipt, Eye, Truck, Star, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -14,7 +14,17 @@ import { Progress } from '@/components/ui/progress'
 import { toast } from 'sonner'
 import api from '@/lib/api'
 import { formatDistanceToNow } from 'date-fns'
-import { getStageProgress, stageLabel, DIMENSION_UNITS, formatDimensions, formatQuantity } from '@/lib/utils'
+import { getStageProgress, stageLabel, DIMENSION_UNITS, formatDimensions, formatQuantity, formatDate, remakeReasonLabel } from '@/lib/utils'
+
+const ORDER_STATUSES = ['QUOTATION', 'APPROVED', 'IN_PRODUCTION', 'QC_PENDING', 'QC_PASSED', 'QC_FAILED', 'READY_TO_DISPATCH', 'DISPATCHED', 'DELIVERED', 'INSTALLATION_PENDING', 'INSTALLED', 'CLOSED', 'CANCELLED']
+
+const toDateInput = (d) => (d ? new Date(d).toISOString().slice(0, 10) : '')
+const emptyEditForm = {
+  status: '', priority: '', quantity: 1,
+  orderDate: '', promisedDate: '', requiredDate: '', dispatchDate: '', notes: '',
+  deliveredSafely: 'UNKNOWN', customerReviewRating: '', customerReviewNotes: '',
+  needsRemake: false, remakeReason: '', remakeNotes: ''
+}
 
 export default function SalesDashboard() {
   const [orders, setOrders] = useState([])
@@ -31,6 +41,7 @@ export default function SalesDashboard() {
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [showOrdersModal, setShowOrdersModal] = useState(false)
   const [showOrderDetailDialog, setShowOrderDetailDialog] = useState(false)
+  const [editForm, setEditForm] = useState(emptyEditForm)
   
   // New Order State
   const [newOrder, setNewOrder] = useState({
@@ -231,6 +242,59 @@ export default function SalesDashboard() {
     }
   }
 
+  // Sales owns the full order record — details, every date (including
+  // backfilling dispatch date on old orders), status/priority, and once
+  // dispatched, the delivery outcome (customer review, safe-delivery,
+  // remake flag). Design and Production only ever see this data, read-only.
+  const openOrderEdit = (order) => {
+    setSelectedOrder(order)
+    setEditForm({
+      status: order.status || '',
+      priority: order.priority || 'NORMAL',
+      quantity: order.quantity ?? 1,
+      orderDate: toDateInput(order.orderDate),
+      promisedDate: toDateInput(order.promisedDate),
+      requiredDate: toDateInput(order.requiredDate),
+      dispatchDate: toDateInput(order.dispatchDate),
+      notes: order.notes || '',
+      deliveredSafely: order.deliveredSafely === true ? 'YES' : order.deliveredSafely === false ? 'NO' : 'UNKNOWN',
+      customerReviewRating: order.customerReviewRating ?? '',
+      customerReviewNotes: order.customerReviewNotes || '',
+      needsRemake: !!order.needsRemake,
+      remakeReason: order.remakeReason || '',
+      remakeNotes: order.remakeNotes || ''
+    })
+    setShowOrderDetailDialog(true)
+  }
+
+  const handleUpdateOrder = async () => {
+    if (!selectedOrder) return
+    try {
+      const payload = {
+        status: editForm.status,
+        priority: editForm.priority,
+        quantity: parseInt(editForm.quantity) || 1,
+        orderDate: editForm.orderDate || null,
+        promisedDate: editForm.promisedDate || null,
+        requiredDate: editForm.requiredDate || null,
+        dispatchDate: editForm.dispatchDate || null,
+        notes: editForm.notes,
+        deliveredSafely: editForm.deliveredSafely === 'YES' ? true : editForm.deliveredSafely === 'NO' ? false : null,
+        customerReviewRating: editForm.customerReviewRating === '' ? null : parseInt(editForm.customerReviewRating),
+        customerReviewNotes: editForm.customerReviewNotes,
+        needsRemake: editForm.needsRemake,
+        remakeReason: editForm.needsRemake ? (editForm.remakeReason || null) : null,
+        remakeNotes: editForm.needsRemake ? editForm.remakeNotes : null
+      }
+      const updated = await api.updateOrder(selectedOrder.id, payload)
+      toast.success('Order updated successfully!')
+      setOrders(prev => prev.map(o => (o.id === updated.id ? updated : o)))
+      setShowOrderDetailDialog(false)
+    } catch (error) {
+      toast.error(error.message || 'Failed to update order')
+    }
+  }
+
   const getStatusColor = (status) => {
     const colors = {
       'QUOTATION': 'bg-blue-500/20 text-blue-400 border-blue-500/50',
@@ -256,6 +320,8 @@ export default function SalesDashboard() {
     approved: orders.filter(o => o.status === 'APPROVED' || o.status === 'IN_PRODUCTION').length,
     customers: customers.length
   }
+
+  const dispatchedOrders = orders.filter(o => o.status === 'DISPATCHED' || o.dispatchDate)
 
   return (
     <div className="space-y-6">
@@ -595,13 +661,10 @@ export default function SalesDashboard() {
                         size="sm"
                         variant="ghost"
                         className="gap-2 text-slate-300 hover:text-white"
-                        onClick={() => {
-                          setSelectedOrder(order)
-                          setShowOrderDetailDialog(true)
-                        }}
+                        onClick={() => openOrderEdit(order)}
                       >
                         <Eye className="w-4 h-4" />
-                        View Status
+                        View / Edit
                       </Button>
                       <Button
                         size="sm"
@@ -631,6 +694,59 @@ export default function SalesDashboard() {
                 </div>
               )
             })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Dispatched Orders — separate section with delivery/review/remake features,
+          kept apart from the main list since these orders are past production. */}
+      <Card className="bg-slate-900 border-slate-800">
+        <CardHeader>
+          <CardTitle className="text-white flex items-center gap-2">
+            <Truck className="w-5 h-5 text-indigo-400" />
+            Dispatched Orders
+          </CardTitle>
+          <CardDescription className="text-slate-400">Delivery status, customer review, and remake flags</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {dispatchedOrders.map(order => (
+              <div key={order.id} className="p-4 bg-slate-800/50 rounded-lg border border-slate-700">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="text-white font-semibold">{order.jobNumber}</h3>
+                      <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
+                      {order.needsRemake && (
+                        <Badge className="bg-red-500/20 text-red-400 border-red-500/50 gap-1">
+                          <RefreshCw className="w-3 h-3" /> Remake: {remakeReasonLabel(order.remakeReason)}
+                        </Badge>
+                      )}
+                      {order.deliveredSafely === true && (
+                        <Badge className="bg-green-500/20 text-green-400 border-green-500/50">Delivered Safely</Badge>
+                      )}
+                      {order.deliveredSafely === false && (
+                        <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/50">Delivery Damaged</Badge>
+                      )}
+                      {order.customerReviewRating && (
+                        <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/50 gap-1">
+                          <Star className="w-3 h-3" /> {order.customerReviewRating}/5
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-400">
+                      {order.customer?.name} · Dispatched: {formatDate(order.dispatchDate)}
+                    </p>
+                  </div>
+                  <Button size="sm" className="gap-2 bg-indigo-600 hover:bg-indigo-700" onClick={() => openOrderEdit(order)}>
+                    Manage
+                  </Button>
+                </div>
+              </div>
+            ))}
+            {dispatchedOrders.length === 0 && (
+              <p className="text-center text-slate-400 py-6">No dispatched orders yet</p>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -793,11 +909,12 @@ export default function SalesDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* Order Status / Production Stage Detail Dialog — read-only for Sales */}
+      {/* Order Detail / Edit Dialog — Sales can change order details, status,
+          every date, and (once dispatched) the delivery outcome. */}
       <Dialog open={showOrderDetailDialog} onOpenChange={setShowOrderDetailDialog}>
         <DialogContent className="bg-slate-900 border-slate-800 text-white max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Order Status — {selectedOrder?.jobNumber}</DialogTitle>
+            <DialogTitle>Edit Order — {selectedOrder?.jobNumber}</DialogTitle>
           </DialogHeader>
           {selectedOrder && (() => {
             const progress = getStageProgress(selectedOrder.productionStages)
@@ -805,68 +922,156 @@ export default function SalesDashboard() {
               <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-slate-400 text-sm">Order Status</p>
-                    <Badge className={getStatusColor(selectedOrder.status)}>{selectedOrder.status}</Badge>
+                    <Label>Order Status</Label>
+                    <Select value={editForm.status} onValueChange={(v) => setEditForm({ ...editForm, status: v })}>
+                      <SelectTrigger className="bg-slate-800 border-slate-700"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {ORDER_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
-                    <p className="text-slate-400 text-sm">Priority</p>
-                    <Badge className={selectedOrder.priority === 'URGENT' ? 'bg-red-500/20 text-red-400 border-red-500/50' : 'bg-slate-500/20 text-slate-300 border-slate-500/50'}>
-                      {selectedOrder.priority}
-                    </Badge>
+                    <Label>Priority</Label>
+                    <Select value={editForm.priority} onValueChange={(v) => setEditForm({ ...editForm, priority: v })}>
+                      <SelectTrigger className="bg-slate-800 border-slate-700"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="LOW">Low</SelectItem>
+                        <SelectItem value="NORMAL">Normal</SelectItem>
+                        <SelectItem value="HIGH">High</SelectItem>
+                        <SelectItem value="URGENT">Urgent</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 
+                <div>
+                  <Label>Quantity</Label>
+                  <Input type="number" min="1" value={editForm.quantity}
+                    onChange={(e) => setEditForm({ ...editForm, quantity: e.target.value })}
+                    className="bg-slate-800 border-slate-700" />
+                </div>
+
+                {/* Dates — Design and Production see Order Placement Date and Dispatch
+                    Date read-only; Sales fills these in, including for old orders. */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-slate-400 text-sm">Quantity</p>
-                    <p className="text-white font-semibold">{formatQuantity(selectedOrder.quantity)}</p>
+                    <Label>Order Placement Date</Label>
+                    <Input type="date" value={editForm.orderDate}
+                      onChange={(e) => setEditForm({ ...editForm, orderDate: e.target.value })}
+                      className="bg-slate-800 border-slate-700 text-white" />
                   </div>
-                  {formatDimensions(selectedOrder.dimensions) && (
-                    <div>
-                      <p className="text-slate-400 text-sm">Dimensions</p>
-                      <p className="text-white">{formatDimensions(selectedOrder.dimensions)}</p>
-                    </div>
-                  )}
+                  <div>
+                    <Label>Dispatch Date</Label>
+                    <Input type="date" value={editForm.dispatchDate}
+                      onChange={(e) => setEditForm({ ...editForm, dispatchDate: e.target.value })}
+                      className="bg-slate-800 border-slate-700 text-white" />
+                  </div>
+                  <div>
+                    <Label>Required Date</Label>
+                    <Input type="date" value={editForm.requiredDate}
+                      onChange={(e) => setEditForm({ ...editForm, requiredDate: e.target.value })}
+                      className="bg-slate-800 border-slate-700 text-white" />
+                  </div>
+                  <div>
+                    <Label>Promised Delivery Date</Label>
+                    <Input type="date" value={editForm.promisedDate}
+                      onChange={(e) => setEditForm({ ...editForm, promisedDate: e.target.value })}
+                      className="bg-slate-800 border-slate-700 text-white" />
+                    {isOverdue(selectedOrder) && <p className="text-xs text-orange-400 mt-1">Overdue</p>}
+                  </div>
                 </div>
 
-                {selectedOrder.promisedDate && (
-                  <div>
-                    <p className="text-slate-400 text-sm">Promised Delivery Date</p>
-                    <p className={isOverdue(selectedOrder) ? 'text-orange-400 font-semibold' : 'text-white'}>
-                      {new Date(selectedOrder.promisedDate).toLocaleDateString()}
-                      {isOverdue(selectedOrder) && ' (overdue)'}
-                    </p>
+                <div>
+                  <Label>Notes</Label>
+                  <Textarea value={editForm.notes}
+                    onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                    className="bg-slate-800 border-slate-700" />
+                </div>
+
+                {formatDimensions(selectedOrder.dimensions) && (
+                  <p className="text-sm text-slate-400">Dimensions: {formatDimensions(selectedOrder.dimensions)}</p>
+                )}
+
+                {/* Dispatch & Delivery Outcome — only relevant once dispatched */}
+                {(editForm.status === 'DISPATCHED' || editForm.status === 'DELIVERED' || editForm.status === 'INSTALLED' || editForm.status === 'CLOSED') && (
+                  <div className="p-4 bg-indigo-500/10 border border-indigo-500/30 rounded-lg space-y-3">
+                    <h3 className="font-semibold text-indigo-400 flex items-center gap-2">
+                      <Truck className="w-4 h-4" /> Dispatch & Delivery Outcome
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Delivered Safely?</Label>
+                        <Select value={editForm.deliveredSafely} onValueChange={(v) => setEditForm({ ...editForm, deliveredSafely: v })}>
+                          <SelectTrigger className="bg-slate-800 border-slate-700"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="UNKNOWN">Not yet known</SelectItem>
+                            <SelectItem value="YES">Yes — safe</SelectItem>
+                            <SelectItem value="NO">No — damaged</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Customer Review Rating (1-5)</Label>
+                        <Select value={editForm.customerReviewRating ? String(editForm.customerReviewRating) : ''} onValueChange={(v) => setEditForm({ ...editForm, customerReviewRating: v })}>
+                          <SelectTrigger className="bg-slate-800 border-slate-700"><SelectValue placeholder="No review yet" /></SelectTrigger>
+                          <SelectContent>
+                            {[1, 2, 3, 4, 5].map(n => <SelectItem key={n} value={String(n)}>{n} star{n > 1 ? 's' : ''}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div>
+                      <Label>Customer Review Notes</Label>
+                      <Textarea value={editForm.customerReviewNotes}
+                        onChange={(e) => setEditForm({ ...editForm, customerReviewNotes: e.target.value })}
+                        className="bg-slate-800 border-slate-700" placeholder="What the customer said" />
+                    </div>
+                    <div className="flex items-center justify-between pt-1">
+                      <Label>Needs Remake (transport/manufacturing defect)?</Label>
+                      <Select value={editForm.needsRemake ? 'YES' : 'NO'} onValueChange={(v) => setEditForm({ ...editForm, needsRemake: v === 'YES' })}>
+                        <SelectTrigger className="w-32 bg-slate-800 border-slate-700"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="NO">No</SelectItem>
+                          <SelectItem value="YES">Yes</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {editForm.needsRemake && (
+                      <>
+                        <div>
+                          <Label>Remake Reason</Label>
+                          <Select value={editForm.remakeReason} onValueChange={(v) => setEditForm({ ...editForm, remakeReason: v })}>
+                            <SelectTrigger className="bg-slate-800 border-slate-700"><SelectValue placeholder="Select reason" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="TRANSPORT_DAMAGE">Transport Damage</SelectItem>
+                              <SelectItem value="MANUFACTURING_DEFECT">Manufacturing Defect</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label>Remake Notes (for Production)</Label>
+                          <Textarea value={editForm.remakeNotes}
+                            onChange={(e) => setEditForm({ ...editForm, remakeNotes: e.target.value })}
+                            className="bg-slate-800 border-slate-700" placeholder="What needs to be redone" />
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
 
                 {progress.total > 0 && (
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <p className="text-slate-400 text-sm">Production Progress</p>
+                      <p className="text-slate-400 text-sm">Production Progress (read-only)</p>
                       <p className="text-xs text-slate-400">{progress.completedCount}/{progress.total} complete</p>
                     </div>
-                    <Progress value={progress.percent} className="h-1.5 mb-3" />
-
-                    {progress.remaining.length > 0 ? (
-                      <p className="text-xs text-slate-500 mb-3">
-                        Remaining ({progress.remainingCount}): {progress.remaining.map((s) => stageLabel(s.stage)).join(', ')}
-                      </p>
-                    ) : (
-                      <p className="text-xs text-green-400 mb-3">All stages complete</p>
-                    )}
-
-                    <div className="space-y-1">
-                      {progress.completed.concat(progress.remaining).sort((a, b) => a.sequence - b.sequence).map((s) => (
-                        <div key={s.id} className="flex justify-between text-sm">
-                          <span className={s.status === 'COMPLETED' ? 'text-slate-500' : 'text-white'}>
-                            {stageLabel(s.stage)}
-                          </span>
-                          <span className="text-slate-400">{s.status}</span>
-                        </div>
-                      ))}
-                    </div>
+                    <Progress value={progress.percent} className="h-1.5" />
                   </div>
                 )}
+
+                <Button onClick={handleUpdateOrder} className="w-full bg-blue-600 hover:bg-blue-700">
+                  Save Changes
+                </Button>
               </div>
             )
           })()}
