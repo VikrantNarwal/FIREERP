@@ -173,9 +173,9 @@ export default function UserManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-white">User Management</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">User Management</h1>
           <p className="text-slate-400 mt-1">Create, edit, and manage system users (CEO Only)</p>
         </div>
         <Button onClick={() => setShowCreateDialog(true)} className="gap-2 bg-blue-600 hover:bg-blue-700">
@@ -185,9 +185,9 @@ export default function UserManagement() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Total Users</p>
@@ -199,7 +199,7 @@ export default function UserManagement() {
         </Card>
 
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Active</p>
@@ -213,7 +213,7 @@ export default function UserManagement() {
         </Card>
 
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Departments</p>
@@ -227,7 +227,7 @@ export default function UserManagement() {
         </Card>
 
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Inactive</p>
@@ -250,9 +250,9 @@ export default function UserManagement() {
           <div className="space-y-3">
             {users.map(user => (
               <div key={user.id} className="p-4 bg-slate-800/50 rounded-lg border border-slate-700 hover:border-slate-600 transition-colors">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
                       <h3 className="text-white font-semibold text-lg">
                         {user.firstName} {user.lastName}
                       </h3>
@@ -261,15 +261,15 @@ export default function UserManagement() {
                         {user.status}
                       </Badge>
                     </div>
-                    <div className="flex items-center gap-4 text-sm text-slate-400">
-                      <span className="flex items-center gap-1">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-400">
+                      <span className="flex items-center gap-1 break-all">
                         <Mail className="w-3 h-3" />
                         {user.email}
                       </span>
                       <span>{user.department || user.role}</span>
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button
                       size="sm"
                       variant="outline"
@@ -324,7 +324,7 @@ export default function UserManagement() {
             <DialogTitle>Create New User</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label>First Name *</Label>
                 <Input
@@ -364,7 +364,7 @@ export default function UserManagement() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label>Role *</Label>
                 <Select value={newUser.role} onValueChange={(v) => setNewUser({ ...newUser, role: v })}>
@@ -477,7 +477,7 @@ export default function UserManagement() {
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent className="bg-slate-900 border-slate-800 text-white">
           <AlertDialogHeader>
-            <div className="flex items-center gap-3 mb-2">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
               <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
                 <AlertTriangle className="w-6 h-6 text-red-500" />
               </div>

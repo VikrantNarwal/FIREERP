@@ -221,12 +221,12 @@ export default function InventoryDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-white">Inventory Management</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">Inventory Management</h1>
           <p className="text-slate-400 mt-1">Complete component tracking with vendor management</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             onClick={() => { setAddForm(emptyForm); setShowAddDialog(true) }}
             className="gap-2 bg-blue-600 hover:bg-blue-700"
@@ -250,27 +250,27 @@ export default function InventoryDashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <p className="text-sm text-slate-400">Total Components</p>
             <p className="text-3xl font-bold text-white">{components.length}</p>
           </CardContent>
         </Card>
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <p className="text-sm text-slate-400">Low Stock Items</p>
             <p className="text-3xl font-bold text-yellow-400">{lowStockCount}</p>
           </CardContent>
         </Card>
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <p className="text-sm text-slate-400">Out of Stock</p>
             <p className="text-3xl font-bold text-red-400">{criticalStockCount}</p>
           </CardContent>
         </Card>
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <p className="text-sm text-slate-400">In Stock</p>
             <p className="text-3xl font-bold text-green-400">
               {components.length - lowStockCount}
@@ -283,10 +283,10 @@ export default function InventoryDashboard() {
       <Card className="bg-slate-900 border-slate-800">
         <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-3">
           <CardTitle className="text-white">Component Inventory (Click Edit to modify all fields)</CardTitle>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             <span className="text-sm text-slate-400">Filter by product:</span>
             <Select value={productFilter} onValueChange={setProductFilter}>
-              <SelectTrigger className="w-56 bg-slate-800 border-slate-700 text-white">
+              <SelectTrigger className="w-full sm:w-56 bg-slate-800 border-slate-700 text-white">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -377,7 +377,7 @@ export default function InventoryDashboard() {
             <DialogTitle>Add Inventory Item</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label>Code *</Label>
                 <Input
@@ -397,7 +397,7 @@ export default function InventoryDashboard() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label>Category</Label>
                 <Select value={addForm.category} onValueChange={(v) => setAddForm({ ...addForm, category: v })}>
@@ -427,7 +427,7 @@ export default function InventoryDashboard() {
               </div>
             </div>
 
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div>
                 <Label>Current Stock</Label>
                 <Input
@@ -489,7 +489,7 @@ export default function InventoryDashboard() {
                     placeholder="Vendor company name"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label>Vendor Contact</Label>
                     <Input
@@ -538,7 +538,7 @@ export default function InventoryDashboard() {
             <DialogTitle>Edit Component</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label>Code *</Label>
                 <Input
@@ -557,7 +557,7 @@ export default function InventoryDashboard() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label>Category</Label>
                 <Select value={editForm.category} onValueChange={(v) => setEditForm({ ...editForm, category: v })}>
@@ -587,7 +587,7 @@ export default function InventoryDashboard() {
               </div>
             </div>
 
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div>
                 <Label>Current Stock</Label>
                 <Input
@@ -649,7 +649,7 @@ export default function InventoryDashboard() {
                     placeholder="Vendor company name"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label>Vendor Contact</Label>
                     <Input

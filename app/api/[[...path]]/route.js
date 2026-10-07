@@ -752,6 +752,69 @@ async function handleRoute(request, { params }) {
       return handleCORS(NextResponse.json(history))
     }
 
+    // Dispatch order - POST /api/orders/:id/dispatch
+    // One-click "send to Dispatched Items". Production and Sales both use this
+    // (Production cannot use the general order edit, which is Sales/Design only).
+    // Sets status DISPATCHED + dispatch date = now, and writes the edit history.
+    // Re-dispatching an order that was flagged for a remake clears the remake flag.
+    if (route.match(/^\/orders\/[^\/]+\/dispatch$/) && method === 'POST') {
+      const user = verifyAuth(request)
+      const denied = requireRole(user, ['SALES', 'PRODUCTION', 'CEO', 'ADMIN'])
+      if (denied) return handleCORS(denied)
+
+      const orderId = path[1]
+      const before = await prisma.order.findUnique({ where: { id: orderId } })
+      if (!before || before.deletedAt) {
+        return handleCORS(NextResponse.json({ error: 'Order not found' }, { status: 404 }))
+      }
+      if (before.status === 'CANCELLED') {
+        return handleCORS(NextResponse.json({ error: 'A cancelled order cannot be dispatched' }, { status: 400 }))
+      }
+      const alreadyDispatched = DISPATCHED_STATUSES.includes(before.status) || !!before.dispatchDate
+      if (alreadyDispatched && !before.needsRemake) {
+        return handleCORS(NextResponse.json({ error: 'This order is already in Dispatched Items' }, { status: 409 }))
+      }
+
+      const data = { status: 'DISPATCHED', dispatchDate: new Date() }
+      if (before.needsRemake) {
+        // The remade unit is going out again — close the remake and reset the
+        // delivery outcome so Sales can record it fresh for the new shipment.
+        data.needsRemake = false
+        data.remakeReason = null
+        data.remakeNotes = null
+        data.deliveredSafely = null
+      }
+
+      const diff = computeOrderDiff(before, data)
+
+      const order = await prisma.$transaction(async (tx) => {
+        const updated = await tx.order.update({
+          where: { id: orderId },
+          data,
+          include: {
+            customer: true,
+            product: true,
+            salesPerson: {
+              select: { id: true, firstName: true, lastName: true, email: true }
+            },
+            productionStages: { orderBy: { sequence: 'asc' } }
+          }
+        })
+        await tx.auditLog.create({
+          data: {
+            userId: user.id,
+            action: 'UPDATE',
+            resource: 'Order',
+            resourceId: updated.id,
+            changes: { dispatched: true, diff }
+          }
+        })
+        return updated
+      })
+
+      return handleCORS(NextResponse.json(order))
+    }
+
     // Soft delete order - DELETE /api/orders/:id (CEO only)
     if (route.match(/^\/orders\/[^\/]+$/) && method === 'DELETE') {
       const user = verifyAuth(request)

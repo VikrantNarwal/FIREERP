@@ -121,14 +121,14 @@ export default function CEOOrders() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-white">All Orders</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-white">All Orders</h1>
         <p className="text-slate-400 mt-1">CEO view with full system access</p>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Total Orders</p>
@@ -140,7 +140,7 @@ export default function CEOOrders() {
         </Card>
 
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Active Orders</p>
@@ -152,7 +152,7 @@ export default function CEOOrders() {
         </Card>
 
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Dispatched Items</p>
@@ -164,7 +164,7 @@ export default function CEOOrders() {
         </Card>
 
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Cancelled</p>
@@ -203,9 +203,9 @@ export default function CEOOrders() {
                 key={order.id}
                 className="p-4 bg-slate-800/50 rounded-lg hover:bg-slate-800 transition-colors border border-slate-700"
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
                       <h3 className="text-white font-semibold text-lg">{order.jobNumber}</h3>
                       <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
                       <Badge className={getPriorityColor(order.priority)}>{priorityLabel(order.priority)}</Badge>
@@ -224,7 +224,7 @@ export default function CEOOrders() {
                       <span>Posted {formatDate(order.orderDate)} ({daysSincePosted(order)}d ago)</span>
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button
                       size="sm"
                       variant="outline"
@@ -325,7 +325,7 @@ export default function CEOOrders() {
       <AlertDialog open={showUrgentDialog} onOpenChange={setShowUrgentDialog}>
         <AlertDialogContent className="bg-slate-900 border-slate-800 text-white">
           <AlertDialogHeader>
-            <div className="flex items-center gap-3 mb-2">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
               <div className="w-12 h-12 rounded-full bg-orange-500/20 flex items-center justify-center">
                 <AlertTriangle className="w-6 h-6 text-orange-500" />
               </div>
@@ -360,7 +360,7 @@ export default function CEOOrders() {
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent className="bg-slate-900 border-slate-800 text-white">
           <AlertDialogHeader>
-            <div className="flex items-center gap-3 mb-2">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
               <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
                 <AlertTriangle className="w-6 h-6 text-red-500" />
               </div>

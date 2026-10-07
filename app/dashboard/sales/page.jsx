@@ -17,6 +17,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { getStageProgress, stageLabel, DIMENSION_UNITS, formatDimensions, formatQuantity, formatDate, remakeReasonLabel, isDispatched, isImportant, daysSincePosted, formatDateTime } from '@/lib/utils'
 import OrderDetailDialog from '@/components/orders/OrderDetailDialog'
 import OrderHistory from '@/components/orders/OrderHistory'
+import DispatchButton from '@/components/orders/DispatchButton'
 
 const ORDER_STATUSES = ['QUOTATION', 'APPROVED', 'IN_PRODUCTION', 'QC_PENDING', 'QC_PASSED', 'QC_FAILED', 'READY_TO_DISPATCH', 'DISPATCHED', 'DELIVERED', 'INSTALLATION_PENDING', 'INSTALLED', 'CLOSED', 'CANCELLED']
 
@@ -305,6 +306,13 @@ export default function SalesDashboard() {
     }
   }
 
+  // Dispatch button result: swap the updated order in. It now counts as
+  // dispatched, so it leaves Active Orders and lands in Dispatched Items.
+  const handleDispatched = (updated) => {
+    setOrders(prev => prev.map(o => (o.id === updated.id ? { ...o, ...updated, productionStages: updated.productionStages || o.productionStages } : o)))
+    setHistoryKey(k => k + 1)
+  }
+
   const getStatusColor = (status) => {
     const colors = {
       'QUOTATION': 'bg-blue-500/20 text-blue-400 border-blue-500/50',
@@ -348,12 +356,12 @@ export default function SalesDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-white">Sales Dashboard</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">Sales Dashboard</h1>
           <p className="text-slate-400 mt-1">Manage orders, customers, and quotations</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Dialog open={showNewCustomerDialog} onOpenChange={setShowNewCustomerDialog}>
             <DialogTrigger asChild>
               <Button variant="outline" className="gap-2">
@@ -417,7 +425,7 @@ export default function SalesDashboard() {
                 <DialogTitle>Create New Order</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 max-h-[70vh] overflow-y-auto">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label>Customer *</Label>
                     <Select value={newOrder.customerId} onValueChange={(value) => setNewOrder({ ...newOrder, customerId: value })}>
@@ -446,7 +454,7 @@ export default function SalesDashboard() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label>Variant</Label>
                     <Select value={newOrder.variant} onValueChange={(value) => setNewOrder({ ...newOrder, variant: value })}>
@@ -555,12 +563,12 @@ export default function SalesDashboard() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         <Card
           className="bg-slate-900 border-slate-800 cursor-pointer hover:border-blue-500/50 transition-colors"
           onClick={() => setShowOrdersModal(true)}
         >
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Total Orders</p>
@@ -575,7 +583,7 @@ export default function SalesDashboard() {
         </Card>
 
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Quotations</p>
@@ -589,7 +597,7 @@ export default function SalesDashboard() {
         </Card>
 
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Active Orders</p>
@@ -603,7 +611,7 @@ export default function SalesDashboard() {
         </Card>
 
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Customers</p>
@@ -641,9 +649,9 @@ export default function SalesDashboard() {
                   key={order.id}
                   className="p-4 bg-slate-800/50 rounded-lg hover:bg-slate-800 transition-colors"
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
                         <h3 className="text-white font-semibold">{order.jobNumber}</h3>
                         <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
                         {isImportant(order) && (
@@ -660,7 +668,7 @@ export default function SalesDashboard() {
                           </Badge>
                         )}
                       </div>
-                      <div className="flex items-center gap-4 text-sm text-slate-400 mb-2">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-400 mb-2">
                         <span>{order.customer?.name}</span>
                         <span>•</span>
                         <span>Qty: {formatQuantity(order.quantity)}</span>
@@ -690,7 +698,8 @@ export default function SalesDashboard() {
                         </div>
                       )}
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
+                      <DispatchButton order={order} onDispatched={handleDispatched} />
                       <Button
                         size="sm"
                         variant="ghost"
@@ -764,8 +773,8 @@ export default function SalesDashboard() {
             {dispatchedOrders.map(order => (
               <div key={order.id} className="p-4 bg-slate-800/50 rounded-lg border border-slate-700">
                 <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
                       <h3 className="text-white font-semibold">{order.jobNumber}</h3>
                       <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
                       {order.needsRemake && (
@@ -789,7 +798,7 @@ export default function SalesDashboard() {
                       {order.customer?.name} · Posted: {formatDate(order.orderDate)} · Dispatched: {formatDate(order.dispatchDate)}
                     </p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button size="sm" variant="ghost" className="gap-2 text-slate-300 hover:text-white" onClick={() => { setDetailOrderId(order.id); setShowFullDetails(true) }}>
                       <ClipboardList className="w-4 h-4" />
                       Full Details
@@ -936,9 +945,9 @@ export default function SalesDashboard() {
             {orders.map(order => {
               const progress = getStageProgress(order.productionStages)
               return (
-                <div key={order.id} className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
+                <div key={order.id} className="flex flex-wrap items-center justify-between p-3 bg-slate-800/50 rounded-lg gap-2 sm:gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
                       <p className="text-white font-medium">{order.jobNumber}</p>
                       {isImportant(order) && (
                         <Badge className="bg-red-500/20 text-red-400 border-red-500/50 text-[10px]">IMPORTANT</Badge>
@@ -977,7 +986,7 @@ export default function SalesDashboard() {
             const progress = getStageProgress(selectedOrder.productionStages)
             return (
               <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label>Order Status</Label>
                     <Select value={editForm.status} onValueChange={(v) => setEditForm({ ...editForm, status: v })}>
@@ -1010,7 +1019,7 @@ export default function SalesDashboard() {
 
                 {/* Dates — Design and Production see Order Placement Date and Dispatch
                     Date read-only; Sales fills these in, including for old orders. */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label>Posted On (automatic)</Label>
                     <div className="h-10 flex items-center px-3 rounded-md bg-slate-800/60 border border-slate-700 text-slate-300 text-sm">
@@ -1055,7 +1064,7 @@ export default function SalesDashboard() {
                     <h3 className="font-semibold text-indigo-400 flex items-center gap-2">
                       <Truck className="w-4 h-4" /> Dispatch & Delivery Outcome
                     </h3>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <Label>Delivered Safely?</Label>
                         <Select value={editForm.deliveredSafely} onValueChange={(v) => setEditForm({ ...editForm, deliveredSafely: v })}>
@@ -1083,7 +1092,7 @@ export default function SalesDashboard() {
                         onChange={(e) => setEditForm({ ...editForm, customerReviewNotes: e.target.value })}
                         className="bg-slate-800 border-slate-700" placeholder="What the customer said" />
                     </div>
-                    <div className="flex items-center justify-between pt-1">
+                    <div className="flex items-center justify-between gap-3 pt-1">
                       <Label>Needs Remake (transport/manufacturing defect)?</Label>
                       <Select value={editForm.needsRemake ? 'YES' : 'NO'} onValueChange={(v) => setEditForm({ ...editForm, needsRemake: v === 'YES' })}>
                         <SelectTrigger className="w-32 bg-slate-800 border-slate-700"><SelectValue /></SelectTrigger>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { LogOut, Home, Users, Package, Boxes, ClipboardCheck, Truck, BarChart3, Settings, Flame } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import api from '@/lib/api'
@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 
 export default function DashboardLayout({ children }) {
   const router = useRouter()
+  const pathname = usePathname()
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -105,33 +106,35 @@ export default function DashboardLayout({ children }) {
 
   return (
     <div className="min-h-screen bg-slate-950">
-      <nav className="bg-slate-900 border-b border-slate-800 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
+      <nav className="bg-slate-900 border-b border-slate-800 sticky top-0 z-40">
+        <div className="flex items-center justify-between gap-3 px-3 sm:px-6 py-3 sm:py-4">
+          <div className="flex items-center gap-4 lg:gap-6 min-w-0">
+            <div className="flex items-center gap-2 shrink-0">
               <Flame className="w-6 h-6 text-orange-500" />
               <div>
-                <h1 className="text-xl font-bold text-white flex items-center gap-2">
+                <h1 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2 leading-tight">
                   FIRE ERP
                 </h1>
-                <a 
-                  href="https://cbfproduction.com" 
-                  target="_blank" 
+                <a
+                  href="https://cbfproduction.com"
+                  target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-orange-400 hover:text-orange-300 transition-colors cursor-pointer hover:underline"
+                  className="hidden sm:block text-xs text-orange-400 hover:text-orange-300 transition-colors cursor-pointer hover:underline"
                 >
                   cbfproduction.com
                 </a>
               </div>
             </div>
-            <div className="flex gap-2">
+            {/* Desktop / tablet nav */}
+            <div className="hidden md:flex gap-2">
               {navItems.map((item) => {
                 const Icon = item.icon
+                const active = pathname === item.href
                 return (
                   <Button
                     key={item.href}
                     variant="ghost"
-                    className="text-slate-300 hover:text-white"
+                    className={`hover:text-white ${active ? 'text-white bg-slate-800' : 'text-slate-300'}`}
                     onClick={() => router.push(item.href)}
                   >
                     <Icon className="w-4 h-4 mr-2" />
@@ -141,24 +144,45 @@ export default function DashboardLayout({ children }) {
               })}
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="text-right">
-              <p className="text-sm font-medium text-white">{user?.firstName} {user?.lastName}</p>
-              <p className="text-xs text-slate-400">{user?.role}</p>
+          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+            <div className="text-right min-w-0">
+              <p className="text-xs sm:text-sm font-medium text-white truncate max-w-[110px] sm:max-w-none">{user?.firstName} {user?.lastName}</p>
+              <p className="text-[10px] sm:text-xs text-slate-400">{user?.role}</p>
             </div>
             <Button
               variant="outline"
               size="sm"
               onClick={handleLogout}
-              className="border-slate-700 text-slate-300 hover:text-white"
+              aria-label="Logout"
+              className="border-slate-700 text-slate-300 hover:text-white px-2 sm:px-3"
             >
-              <LogOut className="w-4 h-4 mr-2" />
-              Logout
+              <LogOut className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Logout</span>
             </Button>
           </div>
         </div>
+
+        {/* Phone nav: scrollable tab strip under the top bar */}
+        <div className="md:hidden flex gap-1 overflow-x-auto px-2 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {navItems.map((item) => {
+            const Icon = item.icon
+            const active = pathname === item.href
+            return (
+              <button
+                key={item.href}
+                onClick={() => router.push(item.href)}
+                className={`flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium shrink-0 ${
+                  active ? 'bg-slate-800 text-white' : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                {item.label}
+              </button>
+            )
+          })}
+        </div>
       </nav>
-      <main className="p-6">
+      <main className="p-3 sm:p-6 overflow-x-hidden">
         {children}
       </main>
     </div>

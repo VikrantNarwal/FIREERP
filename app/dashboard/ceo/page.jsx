@@ -195,11 +195,11 @@ export default function CEODashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-white">CEO Dashboard</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-white">CEO Dashboard</h1>
         <p className="text-slate-400 mt-1">Real-time business overview and KPIs</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         {statCards.map((stat, index) => {
           const Icon = stat.icon
           const clickType = ['totalOrders', 'inProduction', 'delayed', '', '', '', 'lowStock', ''][index]
@@ -209,7 +209,7 @@ export default function CEODashboard() {
               className="bg-slate-900 border-slate-800 hover:border-slate-700 transition-all cursor-pointer"
               onClick={() => clickType && handleStatClick(clickType)}
             >
-              <CardContent className="p-6">
+              <CardContent className="p-4 sm:p-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-slate-400 mb-1">{stat.title}</p>
@@ -293,7 +293,7 @@ export default function CEODashboard() {
                           <AlertCircle className="w-4 h-4 flex-shrink-0" />
                           <span className="text-sm font-medium truncate">{alert.message}</span>
                         </div>
-                        <div className="flex items-center gap-2 text-xs opacity-75">
+                        <div className="flex flex-wrap items-center gap-x-2 text-xs opacity-75">
                           <span>{getCategoryLabel(alert.category)}</span>
                           <span>•</span>
                           <span>{alert.raisedBy?.firstName} {alert.raisedBy?.lastName}</span>
@@ -433,7 +433,7 @@ export default function CEODashboard() {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <div>
                   <h3 className="text-slate-400 mb-1">Raised By</h3>
                   <p className="text-white">

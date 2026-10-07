@@ -177,7 +177,7 @@ export default function DesignDashboard() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-white">Design Dashboard</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">Design Dashboard</h1>
           <p className="text-slate-400 mt-1">Multi-task design board with priority sorting</p>
         </div>
         <Button
@@ -191,9 +191,9 @@ export default function DesignDashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Total Active</p>
@@ -206,7 +206,7 @@ export default function DesignDashboard() {
 
         {columns.map((col) => (
           <Card key={col.id} className="bg-slate-900 border-slate-800">
-            <CardContent className="p-6">
+            <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-slate-400">{col.title}</p>
@@ -276,7 +276,7 @@ export default function DesignDashboard() {
           </DialogHeader>
           {selectedOrder && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label className="text-slate-400">Job Number</Label>
                   <p className="text-white font-semibold">{selectedOrder.jobNumber}</p>
@@ -288,7 +288,7 @@ export default function DesignDashboard() {
               </div>
 
               {/* Set by Sales — read-only here. Dispatch Date stays blank until dispatched. */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label className="text-slate-400">Order Placement Date</Label>
                   <p className="text-white">{formatDate(selectedOrder.orderDate)}</p>
@@ -414,7 +414,7 @@ export default function DesignDashboard() {
               <p className="text-sm font-medium text-slate-300">
                 {variableForm.id ? 'Edit field' : 'Add a new field'}
               </p>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="col-span-1">
                   <Label className="text-slate-400 text-xs">Group</Label>
                   <Input
@@ -443,7 +443,7 @@ export default function DesignDashboard() {
                   />
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button onClick={handleSaveVariable} className="bg-blue-600 hover:bg-blue-700 gap-2">
                   <Plus className="w-4 h-4" />
                   {variableForm.id ? 'Save Changes' : 'Add Field'}

@@ -76,14 +76,14 @@ export default function TeamDirectory() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-white">Team Directory</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-white">Team Directory</h1>
         <p className="text-slate-400 mt-1">View all team members and their roles</p>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Total Team Members</p>
@@ -97,7 +97,7 @@ export default function TeamDirectory() {
         </Card>
 
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Active Users</p>
@@ -113,7 +113,7 @@ export default function TeamDirectory() {
         </Card>
 
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Departments</p>
@@ -129,7 +129,7 @@ export default function TeamDirectory() {
         </Card>
 
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Inactive</p>
@@ -179,8 +179,8 @@ export default function TeamDirectory() {
                     key={user.id}
                     className="p-4 bg-slate-800/50 rounded-lg hover:bg-slate-800 transition-colors border border-slate-700"
                   >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1">
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <div className="flex-1 min-w-0">
                         <h3 className="text-white font-semibold text-lg">
                           {user.firstName} {user.lastName}
                         </h3>

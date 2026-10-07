@@ -62,8 +62,8 @@ export default function AdminProductsPage() {
   useEffect(() => { loadAll() }, [loadAll])
 
   return (
-    <div className="p-6 space-y-8 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between">
+    <div className="p-0 sm:p-6 space-y-6 sm:space-y-8 max-w-6xl mx-auto">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-white">Products & Production Setup</h1>
           <p className="text-slate-400 text-sm mt-1">
@@ -74,9 +74,9 @@ export default function AdminProductsPage() {
 
       {/* ---------------- PRODUCTS ---------------- */}
       <section className="bg-slate-900/60 border border-slate-800 rounded-xl backdrop-blur-sm">
-        <div className="flex items-center justify-between p-5 border-b border-slate-800">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4 sm:p-5 border-b border-slate-800">
           <h2 className="text-lg font-medium text-white">Products</h2>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => setVariantDialogOpen(true)}>
               <Tags className="w-4 h-4 mr-2" /> Manage Variants
             </Button>
@@ -92,9 +92,9 @@ export default function AdminProductsPage() {
             <div className="p-6 text-slate-400 text-sm">No products yet — add your first one.</div>
           )}
           {products.map(p => (
-            <div key={p.id} className="flex items-center justify-between p-5 hover:bg-slate-800/30">
+            <div key={p.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:p-5 hover:bg-slate-800/30">
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-white font-medium">{p.name}</span>
                   <Badge variant="secondary">{p.variant}</Badge>
                   {p._count?.orders > 0 && (
@@ -106,7 +106,7 @@ export default function AdminProductsPage() {
                   {p.stageTemplate?.items?.length || 0} production stage(s)
                 </p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button variant="ghost" size="sm" className="text-slate-300 hover:text-white" onClick={() => { setStageProduct(p); setStageDialogOpen(true) }}>
                   <Settings2 className="w-4 h-4 mr-1" /> Stages
                 </Button>
@@ -305,7 +305,7 @@ function VariantDialog({ open, onOpenChange, variants, reload }) {
 
         <div className="space-y-2 max-h-72 overflow-y-auto">
           {variants.map(v => (
-            <div key={v.id} className="flex items-center justify-between bg-slate-800/50 rounded-lg px-3 py-2">
+            <div key={v.id} className="flex flex-wrap items-center justify-between gap-2 bg-slate-800/50 rounded-lg px-3 py-2">
               <div className="flex items-center gap-2">
                 <span className="text-xs text-slate-500 font-mono">{v.code}</span>
                 {editingId === v.id ? (

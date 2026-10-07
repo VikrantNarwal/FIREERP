@@ -48,13 +48,13 @@ export default function QCDashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-white">Quality Control Dashboard</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-white">Quality Control Dashboard</h1>
         <p className="text-slate-400 mt-1">Inspect and approve orders</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <p className="text-sm text-slate-400">QC Pending</p>
             <p className="text-3xl font-bold text-white">
               {orders.filter(o => o.status === 'QC_PENDING').length}
@@ -62,7 +62,7 @@ export default function QCDashboard() {
           </CardContent>
         </Card>
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <p className="text-sm text-slate-400">QC Passed</p>
             <p className="text-3xl font-bold text-green-400">
               {orders.filter(o => o.status === 'QC_PASSED').length}
@@ -70,7 +70,7 @@ export default function QCDashboard() {
           </CardContent>
         </Card>
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <p className="text-sm text-slate-400">QC Failed</p>
             <p className="text-3xl font-bold text-red-400">
               {orders.filter(o => o.status === 'QC_FAILED').length}
@@ -78,7 +78,7 @@ export default function QCDashboard() {
           </CardContent>
         </Card>
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <p className="text-sm text-slate-400">In Production</p>
             <p className="text-3xl font-bold text-blue-400">
               {orders.filter(o => o.status === 'IN_PRODUCTION').length}
@@ -95,9 +95,9 @@ export default function QCDashboard() {
           <div className="space-y-3">
             {orders.map(order => (
               <div key={order.id} className="p-4 bg-slate-800/50 rounded-lg border border-slate-700">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
                       <h3 className="text-white font-semibold text-lg">{order.jobNumber}</h3>
                       <Badge variant="outline">{order.status}</Badge>
                       <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/50">Qty: {formatQuantity(order.quantity)}</Badge>
@@ -108,7 +108,7 @@ export default function QCDashboard() {
                     <p className="text-sm text-slate-400">{order.customer?.name} - {order.product?.name}</p>
                   </div>
                   {order.status === 'QC_PENDING' && (
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <Button
                         size="sm"
                         className="bg-green-600 hover:bg-green-700"

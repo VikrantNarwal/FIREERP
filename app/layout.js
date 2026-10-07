@@ -8,6 +8,12 @@ export const metadata = {
   description: 'Manufacturing ERP System by CBF Production',
 }
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+}
+
 export default function RootLayout({ children }) {
   return (
     <html lang="en">

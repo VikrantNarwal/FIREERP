@@ -152,12 +152,12 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-white">Admin Dashboard</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">Admin Dashboard</h1>
           <p className="text-slate-400 mt-1">System administration and team monitoring</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" className="gap-2" onClick={handleDownloadReport} disabled={downloading}>
             <Download className="w-4 h-4" />
             {downloading ? 'Preparing…' : 'Download Report'}
@@ -289,12 +289,12 @@ export default function AdminDashboard() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         <Card
           className="bg-slate-900 border-slate-800 cursor-pointer hover:border-blue-500/50 transition-colors"
           onClick={() => setShowOrdersModal(true)}
         >
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Total Orders</p>
@@ -307,7 +307,7 @@ export default function AdminDashboard() {
         </Card>
 
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Today's Orders</p>
@@ -319,7 +319,7 @@ export default function AdminDashboard() {
         </Card>
 
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Active Users Now</p>
@@ -331,7 +331,7 @@ export default function AdminDashboard() {
         </Card>
 
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Open Complaints</p>
@@ -356,7 +356,7 @@ export default function AdminDashboard() {
               {users.slice(0, 8).map(user => {
                 const isActive = user.lastLogin && new Date(user.lastLogin) >= new Date(Date.now() - 60 * 60 * 1000)
                 return (
-                  <div key={user.id} className="flex items-center justify-between p-3 bg-slate-800/50 rounded">
+                  <div key={user.id} className="flex items-center justify-between gap-2 p-3 bg-slate-800/50 rounded">
                     <div className="flex items-center gap-3">
                       <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-green-500' : 'bg-slate-500'}`} />
                       <div>
@@ -412,9 +412,9 @@ export default function AdminDashboard() {
           <div className="space-y-2">
             {repairs.map(repair => (
               <div key={repair.id} className="p-4 bg-slate-800/50 rounded-lg border border-slate-700">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
                       <span className="text-white font-semibold">{repair.orderId}</span>
                       <Badge className={
                         repair.priority === 'URGENT' ? 'bg-red-500' :
@@ -450,9 +450,9 @@ export default function AdminDashboard() {
           <div className="space-y-2">
             {complaints.map(complaint => (
               <div key={complaint.id} className="p-4 bg-slate-800/50 rounded-lg border border-slate-700">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
                       <span className="text-white font-semibold">{complaint.customerName}</span>
                       {complaint.orderId && <span className="text-slate-400 text-sm">({complaint.orderId})</span>}
                       <Badge className={
@@ -492,9 +492,9 @@ export default function AdminDashboard() {
                 new Date(order.promisedDate) < new Date() &&
                 !['DELIVERED', 'CANCELLED', 'CLOSED'].includes(order.status)
               return (
-                <div key={order.id} className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
+                <div key={order.id} className="flex flex-wrap items-center justify-between p-3 bg-slate-800/50 rounded-lg gap-2 sm:gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
                       <p className="text-white font-medium">{order.jobNumber}</p>
                       {order.priority === 'URGENT' && (
                         <Badge className="bg-red-500/20 text-red-400 border-red-500/50 text-[10px]">IMPORTANT</Badge>

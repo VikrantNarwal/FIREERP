@@ -7,13 +7,16 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { AlertCircle, CheckCircle, Ruler, RefreshCw } from 'lucide-react'
+import { AlertCircle, CheckCircle, Ruler, RefreshCw, Truck } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/api'
-import { getStageProgress, stageLabel, formatQuantity, formatDimensions, formatDate, remakeReasonLabel } from '@/lib/utils'
+import { getStageProgress, stageLabel, formatQuantity, formatDimensions, formatDate, remakeReasonLabel, isDispatched } from '@/lib/utils'
+import DispatchButton from '@/components/orders/DispatchButton'
 
 export default function ProductionDashboard() {
   const [orders, setOrders] = useState([])
+  const [dispatchedOrders, setDispatchedOrders] = useState([])
+  const [dispatchedVisible, setDispatchedVisible] = useState(10)
   const [variables, setVariables] = useState([])
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [showStageDialog, setShowStageDialog] = useState(false)
@@ -32,10 +35,18 @@ export default function ProductionDashboard() {
       // Normal in-flight orders, PLUS any already-dispatched order Sales has
       // flagged for a remake (transport/manufacturing defect) — those need to
       // come back into Production's queue even though they left QC long ago.
+      // READY_TO_DISPATCH is included so a finished order can be sent out from here.
       const productionOrders = (data || []).filter(o =>
-        ['APPROVED', 'IN_PRODUCTION', 'QC_PENDING', 'QC_PASSED'].includes(o.status) || o.needsRemake
+        ['APPROVED', 'IN_PRODUCTION', 'QC_PENDING', 'QC_PASSED', 'READY_TO_DISPATCH'].includes(o.status) || o.needsRemake
       )
       setOrders(productionOrders)
+      // Dispatched Items box: everything that has left the factory (remakes
+      // waiting for rework stay in the production list above instead).
+      setDispatchedOrders(
+        (data || [])
+          .filter(o => isDispatched(o) && !o.needsRemake)
+          .sort((a, b) => new Date(b.dispatchDate || b.updatedAt || 0) - new Date(a.dispatchDate || a.updatedAt || 0))
+      )
       // Keep the open dialog's data in sync with the latest fetch (e.g. after a stage update)
       if (selectedOrder) {
         const refreshed = productionOrders.find(o => o.id === selectedOrder.id)
@@ -92,25 +103,33 @@ export default function ProductionDashboard() {
     }
   }
 
+  // After the Dispatch button succeeds: close the stage dialog (if it was
+  // opened from there) and refresh so the order moves to Dispatched Items.
+  const handleDispatched = async () => {
+    setShowStageDialog(false)
+    setSelectedOrder(null)
+    await loadOrders()
+  }
+
   if (loading) return <div className="text-white">Loading...</div>
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-white">Production Dashboard</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-white">Production Dashboard</h1>
         <p className="text-slate-400 mt-1">Multi-stage parallel processing</p>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <p className="text-sm text-slate-400">Active Orders</p>
             <p className="text-3xl font-bold text-white">{orders.length}</p>
           </CardContent>
         </Card>
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <p className="text-sm text-slate-400">In Production</p>
             <p className="text-3xl font-bold text-white">
               {orders.filter(o => o.status === 'IN_PRODUCTION').length}
@@ -118,7 +137,7 @@ export default function ProductionDashboard() {
           </CardContent>
         </Card>
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <p className="text-sm text-slate-400">QC Pending</p>
             <p className="text-3xl font-bold text-white">
               {orders.filter(o => o.status === 'QC_PENDING').length}
@@ -126,7 +145,7 @@ export default function ProductionDashboard() {
           </CardContent>
         </Card>
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <p className="text-sm text-slate-400">Urgent Orders</p>
             <p className="text-3xl font-bold text-red-400">
               {orders.filter(o => o.priority === 'URGENT').length}
@@ -149,9 +168,9 @@ export default function ProductionDashboard() {
             <div className="space-y-2">
               {orders.filter(o => o.needsRemake).map(order => (
                 <div key={order.id} className="p-3 bg-slate-900 rounded-lg border border-orange-500/50">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
                         <h3 className="text-white font-semibold">{order.jobNumber}</h3>
                         <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/50">
                           {remakeReasonLabel(order.remakeReason)}
@@ -160,9 +179,12 @@ export default function ProductionDashboard() {
                       <p className="text-sm text-slate-400">{order.customer?.name}</p>
                       {order.remakeNotes && <p className="text-xs text-slate-500 mt-1">{order.remakeNotes}</p>}
                     </div>
-                    <Button size="sm" className="bg-orange-600 hover:bg-orange-700" onClick={() => { setSelectedOrder(order); setShowStageDialog(true) }}>
-                      Work on This
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" className="bg-orange-600 hover:bg-orange-700" onClick={() => { setSelectedOrder(order); setShowStageDialog(true) }}>
+                        Work on This
+                      </Button>
+                      <DispatchButton order={order} onDispatched={handleDispatched} />
+                    </div>
                   </div>
                 </div>
               ))}
@@ -184,21 +206,24 @@ export default function ProductionDashboard() {
             <div className="space-y-2">
               {orders.filter(o => o.priority === 'URGENT').map(order => (
                 <div key={order.id} className="p-3 bg-slate-900 rounded-lg border border-red-500/50">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
                         <h3 className="text-white font-semibold">{order.jobNumber}</h3>
                         <Badge variant="secondary" className="text-xs">Qty: {formatQuantity(order.quantity)}</Badge>
                       </div>
                       <p className="text-sm text-slate-400">{order.customer?.name}</p>
                     </div>
-                    <Button
-                      size="sm"
-                      className="bg-red-600 hover:bg-red-700"
-                      onClick={() => { setSelectedOrder(order); setShowStageDialog(true) }}
-                    >
-                      Work on This
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        className="bg-red-600 hover:bg-red-700"
+                        onClick={() => { setSelectedOrder(order); setShowStageDialog(true) }}
+                      >
+                        Work on This
+                      </Button>
+                      <DispatchButton order={order} onDispatched={handleDispatched} />
+                    </div>
                   </div>
                 </div>
               ))}
@@ -220,9 +245,9 @@ export default function ProductionDashboard() {
 
               return (
                 <div key={order.id} className="p-4 bg-slate-800/50 rounded-lg border border-slate-700">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-3">
+                    <div className="flex-1 min-w-0 w-full">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
                         <h3 className="text-white font-semibold text-lg">{order.jobNumber}</h3>
                         {order.priority === 'URGENT' && (
                           <Badge className="bg-red-500 text-white animate-pulse">IMPORTANT</Badge>
@@ -278,19 +303,59 @@ export default function ProductionDashboard() {
                         </div>
                       )}
                     </div>
-                    <Button
-                      onClick={() => { setSelectedOrder(order); setShowStageDialog(true) }}
-                      className="bg-blue-600 hover:bg-blue-700"
-                    >
-                      <CheckCircle className="w-4 h-4 mr-2" />
-                      Update Stages
-                    </Button>
+                    <div className="flex flex-row sm:flex-col gap-2 w-full sm:w-auto shrink-0">
+                      <Button
+                        onClick={() => { setSelectedOrder(order); setShowStageDialog(true) }}
+                        className="bg-blue-600 hover:bg-blue-700 flex-1 sm:flex-none"
+                      >
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        Update Stages
+                      </Button>
+                      <DispatchButton order={order} onDispatched={handleDispatched} size="default" className="flex-1 sm:flex-none" />
+                    </div>
                   </div>
                 </div>
               )
             })}
             {orders.length === 0 && (
               <div className="text-center py-8 text-slate-500">No active production orders</div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Dispatched Items — orders sent out via the Dispatch button (by Production or Sales) land here. */}
+      <Card className="bg-slate-900 border-slate-800">
+        <CardHeader>
+          <CardTitle className="text-white flex items-center gap-2">
+            <Truck className="w-5 h-5 text-indigo-400" />
+            Dispatched Items ({dispatchedOrders.length})
+          </CardTitle>
+          <p className="text-sm text-slate-400">Orders that have left the factory</p>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            {dispatchedOrders.slice(0, dispatchedVisible).map(order => (
+              <div key={order.id} className="p-3 bg-slate-800/50 rounded-lg border border-slate-700 flex flex-wrap items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-white font-semibold">{order.jobNumber}</h3>
+                    <Badge className="bg-indigo-500/20 text-indigo-400 border-indigo-500/50">DISPATCHED</Badge>
+                    <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/50">Qty: {formatQuantity(order.quantity)}</Badge>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {order.customer?.name} · {order.product?.name} · Dispatched: {formatDate(order.dispatchDate)}
+                  </p>
+                </div>
+              </div>
+            ))}
+            {dispatchedOrders.length > dispatchedVisible && (
+              <Button variant="outline" className="w-full" onClick={() => setDispatchedVisible(v => v + 10)}>
+                Show more ({dispatchedOrders.length - dispatchedVisible} more)
+              </Button>
+            )}
+            {dispatchedOrders.length === 0 && (
+              <p className="text-center text-slate-500 py-6">No dispatched orders yet</p>
             )}
           </div>
         </CardContent>
@@ -312,7 +377,7 @@ export default function ProductionDashboard() {
               <div className="space-y-6">
                 {/* Quantity — the exact screen a production worker acts from, so this
                     has to be impossible to miss. */}
-                <div className="flex items-center justify-between p-3 bg-cyan-500/10 border border-cyan-500/30 rounded-lg">
+                <div className="flex items-center justify-between gap-2 p-3 bg-cyan-500/10 border border-cyan-500/30 rounded-lg">
                   <span className="text-cyan-400 font-medium">Quantity Required</span>
                   <span className="text-white text-xl font-bold">{formatQuantity(selectedOrder.quantity)}</span>
                 </div>
@@ -377,8 +442,8 @@ export default function ProductionDashboard() {
                     {progress.completed.concat(progress.remaining)
                       .sort((a, b) => a.sequence - b.sequence)
                       .map(stage => (
-                        <div key={stage.id} className="flex items-center justify-between bg-slate-800 p-3 rounded-lg border border-slate-700">
-                          <span className={`text-sm ${stage.status === 'COMPLETED' ? 'text-slate-400' : 'text-white'}`}>
+                        <div key={stage.id} className="flex items-center justify-between gap-2 bg-slate-800 p-3 rounded-lg border border-slate-700">
+                          <span className={`text-sm min-w-0 ${stage.status === 'COMPLETED' ? 'text-slate-400' : 'text-white'}`}>
                             {stageLabel(stage.stage)}
                             {stage.status === 'COMPLETED' && <CheckCircle className="w-3 h-3 inline ml-2 text-green-400" />}
                           </span>
@@ -386,7 +451,7 @@ export default function ProductionDashboard() {
                             value={stage.status}
                             onValueChange={(newStatus) => handleStageStatusChange(stage, newStatus)}
                           >
-                            <SelectTrigger className="w-40 bg-slate-900 border-slate-700 text-white h-8">
+                            <SelectTrigger className="w-32 sm:w-40 shrink-0 bg-slate-900 border-slate-700 text-white h-9 sm:h-8">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -406,8 +471,9 @@ export default function ProductionDashboard() {
                   </div>
                 </div>
 
-                <div className="flex justify-end pt-2 border-t border-slate-800">
+                <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2 border-t border-slate-800">
                   <Button variant="outline" onClick={() => setShowStageDialog(false)}>Close</Button>
+                  <DispatchButton order={selectedOrder} onDispatched={handleDispatched} size="default" fullWidthOnMobile />
                 </div>
               </div>
             )

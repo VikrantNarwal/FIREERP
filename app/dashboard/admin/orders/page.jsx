@@ -154,14 +154,14 @@ export default function AdminOrders() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-white">All Orders</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-white">All Orders</h1>
         <p className="text-slate-400 mt-1">Admin view — flag priority, track every production stage</p>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Total Orders</p>
@@ -173,7 +173,7 @@ export default function AdminOrders() {
         </Card>
 
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Active Orders</p>
@@ -188,7 +188,7 @@ export default function AdminOrders() {
           className="bg-slate-900 border-slate-800 cursor-pointer hover:border-red-500/50 transition-colors"
           onClick={() => setPriorityFilter(priorityFilter === 'URGENT' ? 'ALL' : 'URGENT')}
         >
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Important</p>
@@ -201,7 +201,7 @@ export default function AdminOrders() {
         </Card>
 
         <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Overdue</p>
@@ -256,9 +256,9 @@ export default function AdminOrders() {
                     order.priority === 'URGENT' ? 'border-red-500/60' : 'border-slate-700'
                   }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
                         <h3 className="text-white font-semibold text-lg">{order.jobNumber}</h3>
                         <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
                         <Badge className={getPriorityColor(order.priority)}>{priorityLabel(order.priority)}</Badge>
@@ -270,7 +270,7 @@ export default function AdminOrders() {
                           <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/50">OVERDUE</Badge>
                         )}
                       </div>
-                      <div className="flex items-center gap-4 text-sm text-slate-400 mb-2">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-400 mb-2">
                         <span>{order.customer?.name}</span>
                         <span>•</span>
                         <span>{order.product?.name}</span>
@@ -294,7 +294,7 @@ export default function AdminOrders() {
                         </div>
                       )}
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       {order.priority === 'URGENT' ? (
                         <Button
                           size="sm"
@@ -413,7 +413,7 @@ export default function AdminOrders() {
           </DialogHeader>
           {selectedOrder && (
             <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-slate-400">Status</p>
                   <Badge className={getStatusColor(selectedOrder.status)}>{selectedOrder.status}</Badge>
@@ -423,7 +423,7 @@ export default function AdminOrders() {
                   <Badge className={getPriorityColor(selectedOrder.priority)}>{priorityLabel(selectedOrder.priority)}</Badge>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-slate-400">Customer</p>
                   <p className="text-white">{selectedOrder.customer?.name}</p>
@@ -433,7 +433,7 @@ export default function AdminOrders() {
                   <p className="text-white">{selectedOrder.product?.name} {selectedOrder.variant}</p>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-slate-400">Quantity</p>
                   <p className="text-white font-semibold">{formatQuantity(selectedOrder.quantity)}</p>
@@ -445,7 +445,7 @@ export default function AdminOrders() {
                   </div>
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-slate-400">Final Price</p>
                   <p className="text-white font-semibold">₹{selectedOrder.finalPrice}</p>
@@ -458,7 +458,7 @@ export default function AdminOrders() {
                   </p>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-slate-400">Posted on</p>
                   <p className="text-white">{formatDateTime(selectedOrder.orderDate)}</p>
@@ -496,7 +496,7 @@ export default function AdminOrders() {
 
                     <div className="space-y-2">
                       {progress.completed.concat(progress.remaining).sort((a, b) => a.sequence - b.sequence).map((stage) => (
-                        <div key={stage.id} className="flex items-center justify-between bg-slate-800 p-2 rounded">
+                        <div key={stage.id} className="flex items-center justify-between gap-2 bg-slate-800 p-2 rounded">
                           <span className={`text-sm ${stage.status === 'COMPLETED' ? 'text-slate-400' : 'text-white'}`}>
                             {stageLabel(stage.stage)}
                           </span>
@@ -504,7 +504,7 @@ export default function AdminOrders() {
                             value={stage.status}
                             onValueChange={(newStatus) => handleStageStatusChange(stage, newStatus)}
                           >
-                            <SelectTrigger className="w-40 bg-slate-900 border-slate-700 text-white h-8">
+                            <SelectTrigger className="w-32 sm:w-40 shrink-0 bg-slate-900 border-slate-700 text-white h-9 sm:h-8">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -532,7 +532,7 @@ export default function AdminOrders() {
       <AlertDialog open={showUrgentDialog} onOpenChange={setShowUrgentDialog}>
         <AlertDialogContent className="bg-slate-900 border-slate-800 text-white">
           <AlertDialogHeader>
-            <div className="flex items-center gap-3 mb-2">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
               <div className="w-12 h-12 rounded-full bg-orange-500/20 flex items-center justify-center">
                 <AlertTriangle className="w-6 h-6 text-orange-500" />
               </div>
@@ -574,7 +574,7 @@ export default function AdminOrders() {
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent className="bg-slate-900 border-slate-800 text-white">
           <AlertDialogHeader>
-            <div className="flex items-center gap-3 mb-2">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
               <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
                 <AlertTriangle className="w-6 h-6 text-red-500" />
               </div>
