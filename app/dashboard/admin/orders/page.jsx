@@ -9,11 +9,12 @@ import { Progress } from '@/components/ui/progress'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Package, Search, Trash2, Eye, AlertTriangle, ShieldOff, Clock } from 'lucide-react'
+import { Package, Search, Trash2, Eye, AlertTriangle, ShieldOff, Clock, Truck } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/api'
 import { formatDistanceToNow } from 'date-fns'
-import { getStageProgress, stageLabel, formatQuantity, formatDimensions } from '@/lib/utils'
+import { getStageProgress, stageLabel, formatQuantity, formatDimensions, formatDate, formatDateTime, isDispatched, isImportant, daysSincePosted, priorityLabel } from '@/lib/utils'
+import OrderHistory from '@/components/orders/OrderHistory'
 
 export default function AdminOrders() {
   const [orders, setOrders] = useState([])
@@ -26,6 +27,7 @@ export default function AdminOrders() {
   const [showUrgentDialog, setShowUrgentDialog] = useState(false)
   const [orderToDelete, setOrderToDelete] = useState(null)
   const [orderToFlag, setOrderToFlag] = useState(null) // { order, makeUrgent: bool }
+  const [historyKey, setHistoryKey] = useState(0)
 
   useEffect(() => {
     loadOrders()
@@ -62,11 +64,12 @@ export default function AdminOrders() {
       await api.updateOrder(order.id, { priority: makeUrgent ? 'URGENT' : 'NORMAL' })
       toast.success(
         makeUrgent
-          ? `Order ${order.jobNumber} marked as VERY URGENT!`
+          ? `Order ${order.jobNumber} marked as IMPORTANT!`
           : `Order ${order.jobNumber} urgent flag removed`
       )
       setShowUrgentDialog(false)
       setOrderToFlag(null)
+      setHistoryKey(k => k + 1)
       loadOrders()
     } catch (error) {
       toast.error('Failed to update order priority')
@@ -77,6 +80,7 @@ export default function AdminOrders() {
     try {
       await api.updateProductionStage(stage.id, { status: newStatus })
       toast.success('Stage updated')
+      setHistoryKey(k => k + 1)
       // keep dialog in sync without a full reload flicker
       const data = await api.getOrders()
       setOrders(data)
@@ -115,7 +119,8 @@ export default function AdminOrders() {
   const isOverdue = (order) =>
     order.promisedDate &&
     new Date(order.promisedDate) < new Date() &&
-    !['DELIVERED', 'CANCELLED', 'CLOSED'].includes(order.status)
+    !isDispatched(order) &&
+    order.status !== 'CANCELLED'
 
   const filteredOrders = orders
     .filter((order) =>
@@ -124,12 +129,16 @@ export default function AdminOrders() {
       order.status?.toLowerCase().includes(searchTerm.toLowerCase())
     )
     .filter((order) => priorityFilter === 'ALL' || order.priority === priorityFilter)
-    // Urgent-first, then most recently created — so the orders needing attention surface immediately
+    // Important-first, then most recently created — so the orders needing attention surface immediately
     .sort((a, b) => {
       if (a.priority === 'URGENT' && b.priority !== 'URGENT') return -1
       if (b.priority === 'URGENT' && a.priority !== 'URGENT') return 1
       return new Date(b.createdAt) - new Date(a.createdAt)
     })
+
+  // Dispatched orders live in their own list (Dispatched Items) — never in the active list.
+  const activeFiltered = filteredOrders.filter((o) => !isDispatched(o))
+  const dispatchedFiltered = filteredOrders.filter(isDispatched)
 
   if (loading) {
     return <div className="text-white">Loading orders...</div>
@@ -137,8 +146,8 @@ export default function AdminOrders() {
 
   const stats = {
     total: orders.length,
-    active: orders.filter((o) => !['DELIVERED', 'CANCELLED', 'CLOSED'].includes(o.status)).length,
-    urgent: orders.filter((o) => o.priority === 'URGENT').length,
+    active: orders.filter((o) => !isDispatched(o) && o.status !== 'CANCELLED').length,
+    urgent: orders.filter((o) => o.priority === 'URGENT' && !isDispatched(o)).length,
     overdue: orders.filter(isOverdue).length
   }
 
@@ -182,7 +191,7 @@ export default function AdminOrders() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-slate-400">Urgent</p>
+                <p className="text-sm text-slate-400">Important</p>
                 <p className="text-3xl font-bold text-white">{stats.urgent}</p>
                 <p className="text-xs text-red-400 mt-1">Click to {priorityFilter === 'URGENT' ? 'clear filter' : 'filter'}</p>
               </div>
@@ -222,7 +231,7 @@ export default function AdminOrders() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL">All priorities</SelectItem>
-              <SelectItem value="URGENT">Urgent</SelectItem>
+              <SelectItem value="URGENT">Important</SelectItem>
               <SelectItem value="HIGH">High</SelectItem>
               <SelectItem value="NORMAL">Normal</SelectItem>
               <SelectItem value="LOW">Low</SelectItem>
@@ -234,11 +243,11 @@ export default function AdminOrders() {
       {/* Orders List */}
       <Card className="bg-slate-900 border-slate-800">
         <CardHeader>
-          <CardTitle className="text-white">All Orders ({filteredOrders.length})</CardTitle>
+          <CardTitle className="text-white">Active Orders ({activeFiltered.length})</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {filteredOrders.map((order) => {
+            {activeFiltered.map((order) => {
               const progress = getStageProgress(order.productionStages)
               return (
                 <div
@@ -252,7 +261,10 @@ export default function AdminOrders() {
                       <div className="flex items-center gap-3 mb-2">
                         <h3 className="text-white font-semibold text-lg">{order.jobNumber}</h3>
                         <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
-                        <Badge className={getPriorityColor(order.priority)}>{order.priority}</Badge>
+                        <Badge className={getPriorityColor(order.priority)}>{priorityLabel(order.priority)}</Badge>
+                        {order.autoImportantAt && order.priority === 'URGENT' && (
+                          <Badge className="bg-red-500/20 text-red-400 border-red-500/50">15+ days</Badge>
+                        )}
                         <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/50">Qty: {formatQuantity(order.quantity)}</Badge>
                         {isOverdue(order) && (
                           <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/50">OVERDUE</Badge>
@@ -265,7 +277,7 @@ export default function AdminOrders() {
                         <span>•</span>
                         <span>₹{order.finalPrice}</span>
                         <span>•</span>
-                        <span>{formatDistanceToNow(new Date(order.createdAt), { addSuffix: true })}</span>
+                        <span>Posted {formatDate(order.orderDate)} ({daysSincePosted(order)}d ago)</span>
                       </div>
                       {progress.total > 0 && (
                         <div className="max-w-md">
@@ -307,7 +319,7 @@ export default function AdminOrders() {
                           }}
                         >
                           <AlertTriangle className="w-4 h-4" />
-                          Mark URGENT
+                          Mark IMPORTANT
                         </Button>
                       )}
                       <Button
@@ -341,8 +353,53 @@ export default function AdminOrders() {
                 </div>
               )
             })}
-            {filteredOrders.length === 0 && (
-              <p className="text-center text-slate-400 py-8">No orders match your filters</p>
+            {activeFiltered.length === 0 && (
+              <p className="text-center text-slate-400 py-8">No active orders match your filters</p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Dispatched Items — orders leave the active list and land here automatically once marked Dispatched */}
+      <Card className="bg-slate-900 border-slate-800">
+        <CardHeader>
+          <CardTitle className="text-white flex items-center gap-2">
+            <Truck className="w-5 h-5 text-indigo-400" />
+            Dispatched Items ({dispatchedFiltered.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {dispatchedFiltered.map((order) => (
+              <div key={order.id} className="p-4 bg-slate-800/50 rounded-lg border border-slate-700 flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-white font-semibold">{order.jobNumber}</h3>
+                    <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
+                    {order.needsRemake && (
+                      <Badge className="bg-red-500/20 text-red-400 border-red-500/50">Remake</Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    {order.customer?.name} · {order.product?.name} · Posted: {formatDate(order.orderDate)} · Dispatched: {formatDate(order.dispatchDate)}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => {
+                    setSelectedOrder(order)
+                    setShowDetailDialog(true)
+                  }}
+                >
+                  <Eye className="w-4 h-4" />
+                  View
+                </Button>
+              </div>
+            ))}
+            {dispatchedFiltered.length === 0 && (
+              <p className="text-center text-slate-400 py-6">No dispatched orders{searchTerm ? ' match your search' : ' yet'}</p>
             )}
           </div>
         </CardContent>
@@ -363,7 +420,7 @@ export default function AdminOrders() {
                 </div>
                 <div>
                   <p className="text-sm text-slate-400">Priority</p>
-                  <Badge className={getPriorityColor(selectedOrder.priority)}>{selectedOrder.priority}</Badge>
+                  <Badge className={getPriorityColor(selectedOrder.priority)}>{priorityLabel(selectedOrder.priority)}</Badge>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -399,6 +456,16 @@ export default function AdminOrders() {
                     {selectedOrder.promisedDate ? new Date(selectedOrder.promisedDate).toLocaleDateString() : '—'}
                     {isOverdue(selectedOrder) && ' (overdue)'}
                   </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-slate-400">Posted on</p>
+                  <p className="text-white">{formatDateTime(selectedOrder.orderDate)}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-400">Dispatched on</p>
+                  <p className="text-white">{formatDate(selectedOrder.dispatchDate)}</p>
                 </div>
               </div>
               {selectedOrder.notes && (
@@ -454,6 +521,8 @@ export default function AdminOrders() {
                   </div>
                 )
               })()}
+
+              <OrderHistory orderId={selectedOrder.id} refreshKey={historyKey} />
             </div>
           )}
         </DialogContent>
@@ -468,18 +537,18 @@ export default function AdminOrders() {
                 <AlertTriangle className="w-6 h-6 text-orange-500" />
               </div>
               <AlertDialogTitle>
-                {orderToFlag?.makeUrgent ? 'Mark as VERY URGENT' : 'Remove Urgent Flag'}
+                {orderToFlag?.makeUrgent ? 'Mark as IMPORTANT' : 'Remove Important Flag'}
               </AlertDialogTitle>
             </div>
             <AlertDialogDescription asChild>
               <div className="text-slate-400">
                 {orderToFlag?.makeUrgent ? (
                   <>
-                    <p>Mark order <span className="font-semibold text-white">{orderToFlag?.order?.jobNumber}</span> as VERY URGENT?</p>
+                    <p>Mark order <span className="font-semibold text-white">{orderToFlag?.order?.jobNumber}</span> as IMPORTANT?</p>
                     <p className="mt-3">This will:</p>
                     <ul className="list-disc list-inside mt-2 space-y-1">
                       <li>Show order at the TOP of all dashboards</li>
-                      <li>Add red "URGENT" badge visible everywhere</li>
+                      <li>Add red "IMPORTANT" badge visible everywhere</li>
                       <li>Signal to all teams this needs immediate attention</li>
                     </ul>
                   </>
@@ -495,7 +564,7 @@ export default function AdminOrders() {
               onClick={handleTogglePriority}
               className="bg-orange-600 hover:bg-orange-700"
             >
-              {orderToFlag?.makeUrgent ? 'Mark as VERY URGENT' : 'Remove Flag'}
+              {orderToFlag?.makeUrgent ? 'Mark as IMPORTANT' : 'Remove Flag'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

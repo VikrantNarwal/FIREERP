@@ -497,7 +497,7 @@ export default function AdminDashboard() {
                     <div className="flex items-center gap-2">
                       <p className="text-white font-medium">{order.jobNumber}</p>
                       {order.priority === 'URGENT' && (
-                        <Badge className="bg-red-500/20 text-red-400 border-red-500/50 text-[10px]">URGENT</Badge>
+                        <Badge className="bg-red-500/20 text-red-400 border-red-500/50 text-[10px]">IMPORTANT</Badge>
                       )}
                       {overdue && (
                         <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/50 text-[10px]">OVERDUE</Badge>

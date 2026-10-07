@@ -177,7 +177,7 @@ export default function ProductionDashboard() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-red-400">
               <AlertCircle className="w-5 h-5" />
-              VERY URGENT ORDERS - CEO Priority
+              IMPORTANT ORDERS - needs attention first
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -225,7 +225,7 @@ export default function ProductionDashboard() {
                       <div className="flex items-center gap-3 mb-2">
                         <h3 className="text-white font-semibold text-lg">{order.jobNumber}</h3>
                         {order.priority === 'URGENT' && (
-                          <Badge className="bg-red-500 text-white animate-pulse">VERY URGENT</Badge>
+                          <Badge className="bg-red-500 text-white animate-pulse">IMPORTANT</Badge>
                         )}
                         <Badge variant="outline">{order.status}</Badge>
                         <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/50">Qty: {formatQuantity(order.quantity)}</Badge>

@@ -245,7 +245,7 @@ export default function DesignDashboard() {
                     >
                       <div className="flex items-start justify-between mb-2">
                         <h3 className="text-white font-semibold">{order.jobNumber}</h3>
-                        <Badge className={getPriorityColor(order.priority)}>{order.priority}</Badge>
+                        <Badge className={getPriorityColor(order.priority)}>{order.priority === 'URGENT' ? 'IMPORTANT' : order.priority}</Badge>
                       </div>
                       <p className="text-sm text-slate-400 mb-2">{order.customer?.name}</p>
                       <div className="flex items-center justify-between text-xs text-slate-500">

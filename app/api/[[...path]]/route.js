@@ -68,6 +68,136 @@ function requireRole(user, allowedRoles) {
   return null
 }
 
+
+// ==================== ORDER TRACKING HELPERS ====================
+
+// Statuses that mean "this order has left the factory" — these live in the
+// Dispatched Items list everywhere in the portal, never in the active list.
+const DISPATCHED_STATUSES = ['DISPATCHED', 'DELIVERED', 'INSTALLATION_PENDING', 'INSTALLED', 'CLOSED']
+// An open order older than this many days (counted from its posting date)
+// is automatically flagged IMPORTANT (priority URGENT).
+const IMPORTANT_AFTER_DAYS = 15
+
+// Human labels for the edit-history trail. Only fields listed here are tracked.
+const TRACKED_ORDER_FIELDS = {
+  status: 'Status',
+  priority: 'Priority',
+  quantity: 'Quantity',
+  orderDate: 'Posting date',
+  promisedDate: 'Promised date',
+  requiredDate: 'Required date',
+  dispatchDate: 'Dispatch date',
+  deliveryDate: 'Delivery date',
+  installationDate: 'Installation date',
+  notes: 'Notes',
+  internalNotes: 'Internal notes',
+  customerNotes: 'Customer notes',
+  delayReason: 'Delay reason',
+  deliveredSafely: 'Delivered safely',
+  customerReviewRating: 'Customer rating',
+  customerReviewNotes: 'Customer review notes',
+  needsRemake: 'Needs remake',
+  remakeReason: 'Remake reason',
+  remakeNotes: 'Remake notes',
+  unitPrice: 'Unit price',
+  totalPrice: 'Total price',
+  discount: 'Discount',
+  finalPrice: 'Final price',
+  variant: 'Variant',
+  flameColor: 'Flame colour',
+  soundOption: 'Sound option',
+  rgbOption: 'RGB option',
+  dimensions: 'Dimensions',
+  designMeasurements: 'Design measurements',
+  designApprovedAt: 'Design approved on'
+}
+const DATE_ONLY_FIELDS = new Set([
+  'orderDate', 'promisedDate', 'requiredDate', 'dispatchDate', 'deliveryDate',
+  'installationDate', 'designApprovedAt'
+])
+
+// Turns any stored/sent value into a short, comparable, human-readable string.
+function displayValue(field, value) {
+  if (value === null || value === undefined || value === '') return '(empty)'
+  if (DATE_ONLY_FIELDS.has(field)) {
+    const d = new Date(value)
+    return isNaN(d.getTime()) ? String(value) : d.toISOString().slice(0, 10)
+  }
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No'
+  if (typeof value === 'object') {
+    try { return JSON.stringify(value) } catch { return String(value) }
+  }
+  return String(value)
+}
+
+// Compares the order as it was BEFORE the edit with the cleaned data being
+// written, and returns only what really changed: [{ field, label, from, to }].
+function computeOrderDiff(before, data) {
+  const diff = []
+  for (const field of Object.keys(TRACKED_ORDER_FIELDS)) {
+    if (!(field in data)) continue
+    const from = displayValue(field, before[field])
+    const to = displayValue(field, data[field])
+    if (from !== to) diff.push({ field, label: TRACKED_ORDER_FIELDS[field], from, to })
+  }
+  return diff
+}
+
+// Open orders more than IMPORTANT_AFTER_DAYS old become IMPORTANT (priority
+// URGENT) automatically — once. After that a person can still change the
+// priority by hand and it will NOT be overwritten again (autoImportantAt is
+// the "already handled" marker). Runs at most once every 5 minutes per server.
+let lastAutoFlagRun = 0
+async function autoFlagImportantOrders(userId) {
+  const now = Date.now()
+  if (now - lastAutoFlagRun < 5 * 60 * 1000) return
+  lastAutoFlagRun = now
+  try {
+    const cutoff = new Date(now - IMPORTANT_AFTER_DAYS * 24 * 60 * 60 * 1000)
+    const due = await prisma.order.findMany({
+      where: {
+        deletedAt: null,
+        autoImportantAt: null,
+        orderDate: { lt: cutoff },
+        dispatchDate: null,
+        status: { notIn: [...DISPATCHED_STATUSES, 'CANCELLED'] }
+      },
+      select: { id: true, priority: true }
+    })
+    if (due.length === 0) return
+
+    await prisma.order.updateMany({
+      where: { id: { in: due.map(o => o.id) } },
+      data: { priority: 'URGENT', autoImportantAt: new Date() }
+    })
+
+    const changed = due.filter(o => o.priority !== 'URGENT')
+    if (changed.length > 0) {
+      await prisma.auditLog.createMany({
+        data: changed.map(o => ({
+          userId,
+          action: 'UPDATE',
+          resource: 'Order',
+          resourceId: o.id,
+          changes: {
+            auto: true,
+            diff: [{
+              field: 'priority',
+              label: 'Priority',
+              from: o.priority,
+              to: `URGENT (auto-marked IMPORTANT: ${IMPORTANT_AFTER_DAYS} days passed since posting)`
+            }]
+          }
+        }))
+      })
+    }
+  } catch (error) {
+    // Never block the order list because of the auto-flag job.
+    lastAutoFlagRun = 0
+    console.error('autoFlagImportantOrders failed:', error)
+  }
+}
+
 // Main route handler
 async function handleRoute(request, { params }) {
   const { path = [] } = await params
@@ -325,6 +455,8 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }))
       }
 
+      await autoFlagImportantOrders(user.id)
+
       const url = new URL(request.url)
       const status = url.searchParams.get('status')
       const priority = url.searchParams.get('priority')
@@ -469,6 +601,8 @@ async function handleRoute(request, { params }) {
           soundOption: body.soundOption || false,
           rgbOption: body.rgbOption || false,
           status: 'QUOTATION',
+          // Posting date is always stamped by the server — nobody types it.
+          orderDate: new Date(),
           priority: body.priority || 'NORMAL',
           quantity: body.quantity || 1,
           unitPrice: body.unitPrice,
@@ -511,7 +645,8 @@ async function handleRoute(request, { params }) {
             userId: user.id,
             action: 'CREATE',
             resource: 'Order',
-            resourceId: order.id
+            resourceId: order.id,
+            changes: { created: true, diff: [] }
           }
         })
       ])
@@ -533,9 +668,29 @@ async function handleRoute(request, { params }) {
       const orderId = path[1]
       const body = await request.json()
 
+      const before = await prisma.order.findUnique({ where: { id: orderId } })
+      if (!before) {
+        return handleCORS(NextResponse.json({ error: 'Order not found' }, { status: 404 }))
+      }
+
+      const data = sanitizeOrderUpdate(body)
+
+      // The posting date is set automatically when the order is created.
+      // Only CEO / Admin may correct it.
+      if (!['CEO', 'ADMIN'].includes(user.role)) delete data.orderDate
+
+      // Marked DISPATCHED with no dispatch date? Stamp it now — the order then
+      // moves to the Dispatched Items list on its own, nobody has to type a date.
+      const nextStatus = data.status || before.status
+      if (nextStatus === 'DISPATCHED' && !before.dispatchDate && !data.dispatchDate) {
+        data.dispatchDate = new Date()
+      }
+
+      const diff = computeOrderDiff(before, data)
+
       const order = await prisma.order.update({
         where: { id: orderId },
-        data: sanitizeOrderUpdate(body),
+        data,
         include: {
           customer: true,
           product: true,
@@ -549,17 +704,52 @@ async function handleRoute(request, { params }) {
         }
       })
 
-      await prisma.auditLog.create({
-        data: {
-          userId: user.id,
-          action: 'UPDATE',
-          resource: 'Order',
-          resourceId: order.id,
-          changes: body
-        }
-      })
+      // Only write a history entry when something truly changed.
+      if (diff.length > 0) {
+        await prisma.auditLog.create({
+          data: {
+            userId: user.id,
+            action: 'UPDATE',
+            resource: 'Order',
+            resourceId: order.id,
+            changes: { diff }
+          }
+        })
+      }
 
       return handleCORS(NextResponse.json(order))
+    }
+
+    // Edit history for one order - GET /api/orders/:id/history
+    // Every role can read it: it shows who changed what, and when.
+    if (route.match(/^\/orders\/[^\/]+\/history$/) && method === 'GET') {
+      const user = verifyAuth(request)
+      if (!user) {
+        return handleCORS(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }))
+      }
+
+      const logs = await prisma.auditLog.findMany({
+        where: { resource: 'Order', resourceId: path[1] },
+        include: {
+          user: { select: { firstName: true, lastName: true, role: true } }
+        },
+        orderBy: { timestamp: 'desc' },
+        take: 200
+      })
+
+      const history = logs
+        .filter(l => l.action === 'CREATE' || l.action === 'DELETE' || (l.changes && Array.isArray(l.changes.diff) && l.changes.diff.length > 0))
+        .map(l => ({
+          id: l.id,
+          at: l.timestamp,
+          action: l.action,
+          auto: !!(l.changes && l.changes.auto),
+          by: l.user ? `${l.user.firstName} ${l.user.lastName}` : 'Unknown',
+          role: l.user ? l.user.role : null,
+          diff: (l.changes && Array.isArray(l.changes.diff)) ? l.changes.diff : []
+        }))
+
+      return handleCORS(NextResponse.json(history))
     }
 
     // Soft delete order - DELETE /api/orders/:id (CEO only)
@@ -699,6 +889,17 @@ async function handleRoute(request, { params }) {
               where: { id: order.id },
               data: { status: nextOrderStatus }
             })
+            await tx.auditLog.create({
+              data: {
+                userId: user.id,
+                action: 'UPDATE',
+                resource: 'Order',
+                resourceId: order.id,
+                changes: {
+                  diff: [{ field: 'status', label: 'Status', from: order.status, to: nextOrderStatus }]
+                }
+              }
+            })
           }
         }
 
@@ -714,6 +915,8 @@ async function handleRoute(request, { params }) {
       if (!user) {
         return handleCORS(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }))
       }
+
+      await autoFlagImportantOrders(user.id)
 
       const orders = await prisma.order.findMany({
         where: {

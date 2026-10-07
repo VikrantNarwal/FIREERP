@@ -7,11 +7,12 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
-import { Package, Search, Trash2, Eye, AlertTriangle } from 'lucide-react'
+import { Package, Search, Trash2, Eye, AlertTriangle, Truck } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/api'
 import { formatDistanceToNow } from 'date-fns'
-import { formatQuantity, formatDimensions } from '@/lib/utils'
+import { formatQuantity, formatDimensions, formatDate, isDispatched, isImportant, daysSincePosted, priorityLabel } from '@/lib/utils'
+import OrderDetailDialog from '@/components/orders/OrderDetailDialog'
 
 export default function CEOOrders() {
   const [orders, setOrders] = useState([])
@@ -60,7 +61,7 @@ export default function CEOOrders() {
       await api.updateOrder(orderToMarkUrgent.id, {
         priority: 'URGENT'
       })
-      toast.success(`Order ${orderToMarkUrgent.jobNumber} marked as VERY URGENT!`)
+      toast.success(`Order ${orderToMarkUrgent.jobNumber} marked as IMPORTANT!`)
       setShowUrgentDialog(false)
       setOrderToMarkUrgent(null)
       loadOrders()
@@ -97,8 +98,14 @@ export default function CEOOrders() {
   const filteredOrders = orders.filter(order =>
     order.jobNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     order.customer?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    order.customer?.phone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     order.status?.toLowerCase().includes(searchTerm.toLowerCase())
   )
+  // Dispatched orders live in their own list; important ones sit on top of the active list.
+  const activeFiltered = filteredOrders
+    .filter(o => !isDispatched(o))
+    .sort((a, b) => (isImportant(b) ? 1 : 0) - (isImportant(a) ? 1 : 0))
+  const dispatchedFiltered = filteredOrders.filter(isDispatched)
 
   if (loading) {
     return <div className="text-white">Loading orders...</div>
@@ -106,9 +113,9 @@ export default function CEOOrders() {
 
   const stats = {
     total: orders.length,
-    active: orders.filter(o => !['DELIVERED', 'CANCELLED', 'CLOSED'].includes(o.status)).length,
+    active: orders.filter(o => !isDispatched(o) && o.status !== 'CANCELLED').length,
     cancelled: orders.filter(o => o.status === 'CANCELLED').length,
-    delivered: orders.filter(o => o.status === 'DELIVERED').length
+    delivered: orders.filter(isDispatched).length
   }
 
   return (
@@ -148,7 +155,7 @@ export default function CEOOrders() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-slate-400">Delivered</p>
+                <p className="text-sm text-slate-400">Dispatched Items</p>
                 <p className="text-3xl font-bold text-white">{stats.delivered}</p>
               </div>
               <Package className="w-8 h-8 text-cyan-400" />
@@ -187,11 +194,11 @@ export default function CEOOrders() {
       {/* Orders List */}
       <Card className="bg-slate-900 border-slate-800">
         <CardHeader>
-          <CardTitle className="text-white">All Orders ({filteredOrders.length})</CardTitle>
+          <CardTitle className="text-white">Active Orders ({activeFiltered.length})</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {filteredOrders.map((order) => (
+            {activeFiltered.map((order) => (
               <div
                 key={order.id}
                 className="p-4 bg-slate-800/50 rounded-lg hover:bg-slate-800 transition-colors border border-slate-700"
@@ -201,7 +208,10 @@ export default function CEOOrders() {
                     <div className="flex items-center gap-3 mb-2">
                       <h3 className="text-white font-semibold text-lg">{order.jobNumber}</h3>
                       <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
-                      <Badge className={getPriorityColor(order.priority)}>{order.priority}</Badge>
+                      <Badge className={getPriorityColor(order.priority)}>{priorityLabel(order.priority)}</Badge>
+                      {order.autoImportantAt && order.priority === 'URGENT' && (
+                        <Badge className="bg-red-500/20 text-red-400 border-red-500/50">15+ days</Badge>
+                      )}
                       <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/50">Qty: {formatQuantity(order.quantity)}</Badge>
                     </div>
                     <div className="flex items-center gap-4 text-sm text-slate-400">
@@ -211,7 +221,7 @@ export default function CEOOrders() {
                       <span>•</span>
                       <span>₹{order.finalPrice}</span>
                       <span>•</span>
-                      <span>{formatDistanceToNow(new Date(order.createdAt), { addSuffix: true })}</span>
+                      <span>Posted {formatDate(order.orderDate)} ({daysSincePosted(order)}d ago)</span>
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -225,7 +235,7 @@ export default function CEOOrders() {
                       }}
                     >
                       <AlertTriangle className="w-4 h-4" />
-                      Mark URGENT
+                      Mark IMPORTANT
                     </Button>
                     <Button
                       size="sm"
@@ -261,66 +271,55 @@ export default function CEOOrders() {
         </CardContent>
       </Card>
 
-      {/* Order Detail Dialog */}
-      <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
-        <DialogContent className="bg-slate-900 border-slate-800 text-white max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Order Details</DialogTitle>
-          </DialogHeader>
-          {selectedOrder && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+
+      {/* Dispatched Items — orders leave the active list and land here automatically once marked Dispatched */}
+      <Card className="bg-slate-900 border-slate-800">
+        <CardHeader>
+          <CardTitle className="text-white flex items-center gap-2">
+            <Truck className="w-5 h-5 text-indigo-400" />
+            Dispatched Items ({dispatchedFiltered.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {dispatchedFiltered.map((order) => (
+              <div key={order.id} className="p-4 bg-slate-800/50 rounded-lg border border-slate-700 flex items-center justify-between gap-3 flex-wrap">
                 <div>
-                  <p className="text-sm text-slate-400">Job Number</p>
-                  <p className="text-white font-semibold">{selectedOrder.jobNumber}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-400">Status</p>
-                  <Badge className={getStatusColor(selectedOrder.status)}>{selectedOrder.status}</Badge>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-slate-400">Customer</p>
-                  <p className="text-white">{selectedOrder.customer?.name}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-400">Product</p>
-                  <p className="text-white">{selectedOrder.product?.name}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-slate-400">Quantity</p>
-                  <p className="text-white font-semibold">{formatQuantity(selectedOrder.quantity)}</p>
-                </div>
-                {formatDimensions(selectedOrder.dimensions) && (
-                  <div>
-                    <p className="text-sm text-slate-400">Dimensions</p>
-                    <p className="text-white">{formatDimensions(selectedOrder.dimensions)}</p>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-white font-semibold">{order.jobNumber}</h3>
+                    <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
+                    {order.needsRemake && (
+                      <Badge className="bg-red-500/20 text-red-400 border-red-500/50">Remake</Badge>
+                    )}
                   </div>
-                )}
+                  <p className="text-xs text-slate-400">
+                    {order.customer?.name} · {order.product?.name} · Posted: {formatDate(order.orderDate)} · Dispatched: {formatDate(order.dispatchDate)}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => {
+                    setSelectedOrder(order)
+                    setShowDetailDialog(true)
+                  }}
+                >
+                  <Eye className="w-4 h-4" />
+                  View
+                </Button>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-slate-400">Final Price</p>
-                  <p className="text-white font-semibold">₹{selectedOrder.finalPrice}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-400">Priority</p>
-                  <Badge className={getPriorityColor(selectedOrder.priority)}>{selectedOrder.priority}</Badge>
-                </div>
-              </div>
-              {selectedOrder.notes && (
-                <div>
-                  <p className="text-sm text-slate-400 mb-1">Notes</p>
-                  <p className="text-white">{selectedOrder.notes}</p>
-                </div>
-              )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+            ))}
+            {dispatchedFiltered.length === 0 && (
+              <p className="text-center text-slate-400 py-6">No dispatched orders{searchTerm ? ' match your search' : ' yet'}</p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Order Detail Dialog — full read-only details + edit history */}
+      <OrderDetailDialog orderId={selectedOrder?.id} open={showDetailDialog} onOpenChange={setShowDetailDialog} />
+
 
       {/* Mark Urgent Confirmation Dialog */}
       <AlertDialog open={showUrgentDialog} onOpenChange={setShowUrgentDialog}>
@@ -330,16 +329,16 @@ export default function CEOOrders() {
               <div className="w-12 h-12 rounded-full bg-orange-500/20 flex items-center justify-center">
                 <AlertTriangle className="w-6 h-6 text-orange-500" />
               </div>
-              <AlertDialogTitle>Mark as VERY URGENT</AlertDialogTitle>
+              <AlertDialogTitle>Mark as IMPORTANT</AlertDialogTitle>
             </div>
             <AlertDialogDescription asChild>
               <div className="text-slate-400">
-                <p>Mark order <span className="font-semibold text-white">{orderToMarkUrgent?.jobNumber}</span> as VERY URGENT?</p>
+                <p>Mark order <span className="font-semibold text-white">{orderToMarkUrgent?.jobNumber}</span> as IMPORTANT?</p>
                 <p className="mt-3">This will:</p>
                 <ul className="list-disc list-inside mt-2 space-y-1">
                   <li>Show order at the TOP of all dashboards</li>
                   <li>Alert ALL departments (Production, QC, Design, etc.)</li>
-                  <li>Add red "VERY URGENT" badge visible everywhere</li>
+                  <li>Add red "IMPORTANT" badge visible everywhere</li>
                   <li>Require immediate attention from all teams</li>
                 </ul>
               </div>
@@ -351,7 +350,7 @@ export default function CEOOrders() {
               onClick={handleMarkUrgent}
               className="bg-orange-600 hover:bg-orange-700"
             >
-              Mark as VERY URGENT
+              Mark as IMPORTANT
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

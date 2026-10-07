@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Package, DollarSign, FileText, Upload, Receipt, Eye, Truck, Star, RefreshCw } from 'lucide-react'
+import { Plus, Package, DollarSign, FileText, Upload, Receipt, Eye, Truck, Star, RefreshCw, Search, ClipboardList } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -14,7 +14,9 @@ import { Progress } from '@/components/ui/progress'
 import { toast } from 'sonner'
 import api from '@/lib/api'
 import { formatDistanceToNow } from 'date-fns'
-import { getStageProgress, stageLabel, DIMENSION_UNITS, formatDimensions, formatQuantity, formatDate, remakeReasonLabel } from '@/lib/utils'
+import { getStageProgress, stageLabel, DIMENSION_UNITS, formatDimensions, formatQuantity, formatDate, remakeReasonLabel, isDispatched, isImportant, daysSincePosted, formatDateTime } from '@/lib/utils'
+import OrderDetailDialog from '@/components/orders/OrderDetailDialog'
+import OrderHistory from '@/components/orders/OrderHistory'
 
 const ORDER_STATUSES = ['QUOTATION', 'APPROVED', 'IN_PRODUCTION', 'QC_PENDING', 'QC_PASSED', 'QC_FAILED', 'READY_TO_DISPATCH', 'DISPATCHED', 'DELIVERED', 'INSTALLATION_PENDING', 'INSTALLED', 'CLOSED', 'CANCELLED']
 
@@ -42,6 +44,13 @@ export default function SalesDashboard() {
   const [showOrdersModal, setShowOrdersModal] = useState(false)
   const [showOrderDetailDialog, setShowOrderDetailDialog] = useState(false)
   const [editForm, setEditForm] = useState(emptyEditForm)
+  // Full read-only details window, search box, "show more", and a counter that
+  // refreshes the edit-history list right after a save.
+  const [detailOrderId, setDetailOrderId] = useState(null)
+  const [showFullDetails, setShowFullDetails] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [visibleCount, setVisibleCount] = useState(15)
+  const [historyKey, setHistoryKey] = useState(0)
   
   // New Order State
   const [newOrder, setNewOrder] = useState({
@@ -274,7 +283,6 @@ export default function SalesDashboard() {
         status: editForm.status,
         priority: editForm.priority,
         quantity: parseInt(editForm.quantity) || 1,
-        orderDate: editForm.orderDate || null,
         promisedDate: editForm.promisedDate || null,
         requiredDate: editForm.requiredDate || null,
         dispatchDate: editForm.dispatchDate || null,
@@ -288,7 +296,9 @@ export default function SalesDashboard() {
       }
       const updated = await api.updateOrder(selectedOrder.id, payload)
       toast.success('Order updated successfully!')
-      setOrders(prev => prev.map(o => (o.id === updated.id ? updated : o)))
+      // the PUT response has no production stages — keep the ones we already had
+      setOrders(prev => prev.map(o => (o.id === updated.id ? { ...updated, productionStages: o.productionStages } : o)))
+      setHistoryKey(k => k + 1)
       setShowOrderDetailDialog(false)
     } catch (error) {
       toast.error(error.message || 'Failed to update order')
@@ -308,7 +318,8 @@ export default function SalesDashboard() {
   const isOverdue = (order) =>
     order.promisedDate &&
     new Date(order.promisedDate) < new Date() &&
-    !['DELIVERED', 'CANCELLED', 'CLOSED'].includes(order.status)
+    !isDispatched(order) &&
+    !['CANCELLED'].includes(order.status)
 
   if (loading) {
     return <div className="text-white">Loading...</div>
@@ -321,7 +332,19 @@ export default function SalesDashboard() {
     customers: customers.length
   }
 
-  const dispatchedOrders = orders.filter(o => o.status === 'DISPATCHED' || o.dispatchDate)
+  // Search works on both lists at once (job number, customer, phone, status, product).
+  const matchesSearch = (o) => {
+    const q = searchTerm.trim().toLowerCase()
+    if (!q) return true
+    return [o.jobNumber, o.customer?.name, o.customer?.phone, o.status, o.product?.name, o.variant]
+      .some(v => (v || '').toString().toLowerCase().includes(q))
+  }
+  // Dispatched orders leave the active list and live in "Dispatched Items".
+  const activeOrders = orders
+    .filter(o => !isDispatched(o) && o.status !== 'CANCELLED')
+    .filter(matchesSearch)
+    .sort((a, b) => (isImportant(b) ? 1 : 0) - (isImportant(a) ? 1 : 0))
+  const dispatchedOrders = orders.filter(isDispatched).filter(matchesSearch)
 
   return (
     <div className="space-y-6">
@@ -597,12 +620,21 @@ export default function SalesDashboard() {
       {/* Orders List */}
       <Card className="bg-slate-900 border-slate-800">
         <CardHeader>
-          <CardTitle className="text-white">Recent Orders</CardTitle>
-          <CardDescription className="text-slate-400">Manage and track order payments</CardDescription>
+          <CardTitle className="text-white">Active Orders ({activeOrders.length})</CardTitle>
+          <CardDescription className="text-slate-400">Every order that is not dispatched yet — important ones on top</CardDescription>
+          <div className="relative pt-2">
+            <Search className="absolute left-3 top-1/2 mt-1 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Input
+              placeholder="Search job number, customer, phone, product or status..."
+              value={searchTerm}
+              onChange={(e) => { setSearchTerm(e.target.value); setVisibleCount(15) }}
+              className="pl-10 bg-slate-800 border-slate-700 text-white"
+            />
+          </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {orders.slice(0, 10).map((order) => {
+            {activeOrders.slice(0, visibleCount).map((order) => {
               const progress = getStageProgress(order.productionStages)
               return (
                 <div
@@ -614,8 +646,10 @@ export default function SalesDashboard() {
                       <div className="flex items-center gap-3 mb-2">
                         <h3 className="text-white font-semibold">{order.jobNumber}</h3>
                         <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
-                        {order.priority === 'URGENT' && (
-                          <Badge className="bg-red-500/20 text-red-400 border-red-500/50">URGENT</Badge>
+                        {isImportant(order) && (
+                          <Badge className="bg-red-500/20 text-red-400 border-red-500/50">
+                            IMPORTANT{order.autoImportantAt ? ' (15+ days)' : ''}
+                          </Badge>
                         )}
                         {isOverdue(order) && (
                           <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/50">OVERDUE</Badge>
@@ -641,7 +675,7 @@ export default function SalesDashboard() {
                           </>
                         )}
                         <span>•</span>
-                        <span>{formatDistanceToNow(new Date(order.createdAt), { addSuffix: true })}</span>
+                        <span>Posted {formatDate(order.orderDate)} ({daysSincePosted(order)} day{daysSincePosted(order) === 1 ? '' : 's'} ago)</span>
                       </div>
                       {progress.total > 0 && (
                         <div className="max-w-md">
@@ -661,10 +695,19 @@ export default function SalesDashboard() {
                         size="sm"
                         variant="ghost"
                         className="gap-2 text-slate-300 hover:text-white"
+                        onClick={() => { setDetailOrderId(order.id); setShowFullDetails(true) }}
+                      >
+                        <ClipboardList className="w-4 h-4" />
+                        Full Details
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="gap-2 text-slate-300 hover:text-white"
                         onClick={() => openOrderEdit(order)}
                       >
                         <Eye className="w-4 h-4" />
-                        View / Edit
+                        Edit
                       </Button>
                       <Button
                         size="sm"
@@ -694,6 +737,14 @@ export default function SalesDashboard() {
                 </div>
               )
             })}
+            {activeOrders.length > visibleCount && (
+              <Button variant="outline" className="w-full" onClick={() => setVisibleCount(c => c + 15)}>
+                Show more ({activeOrders.length - visibleCount} more)
+              </Button>
+            )}
+            {activeOrders.length === 0 && (
+              <p className="text-center text-slate-400 py-6">No active orders{searchTerm ? ' match your search' : ''}</p>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -704,9 +755,9 @@ export default function SalesDashboard() {
         <CardHeader>
           <CardTitle className="text-white flex items-center gap-2">
             <Truck className="w-5 h-5 text-indigo-400" />
-            Dispatched Orders
+            Dispatched Items ({dispatchedOrders.length})
           </CardTitle>
-          <CardDescription className="text-slate-400">Delivery status, customer review, and remake flags</CardDescription>
+          <CardDescription className="text-slate-400">Orders move here automatically once marked Dispatched — delivery status, customer review, remake flags</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
@@ -735,17 +786,23 @@ export default function SalesDashboard() {
                       )}
                     </div>
                     <p className="text-xs text-slate-400">
-                      {order.customer?.name} · Dispatched: {formatDate(order.dispatchDate)}
+                      {order.customer?.name} · Posted: {formatDate(order.orderDate)} · Dispatched: {formatDate(order.dispatchDate)}
                     </p>
                   </div>
-                  <Button size="sm" className="gap-2 bg-indigo-600 hover:bg-indigo-700" onClick={() => openOrderEdit(order)}>
-                    Manage
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="ghost" className="gap-2 text-slate-300 hover:text-white" onClick={() => { setDetailOrderId(order.id); setShowFullDetails(true) }}>
+                      <ClipboardList className="w-4 h-4" />
+                      Full Details
+                    </Button>
+                    <Button size="sm" className="gap-2 bg-indigo-600 hover:bg-indigo-700" onClick={() => openOrderEdit(order)}>
+                      Manage
+                    </Button>
+                  </div>
                 </div>
               </div>
             ))}
             {dispatchedOrders.length === 0 && (
-              <p className="text-center text-slate-400 py-6">No dispatched orders yet</p>
+              <p className="text-center text-slate-400 py-6">No dispatched orders{searchTerm ? ' match your search' : ' yet'}</p>
             )}
           </div>
         </CardContent>
@@ -883,8 +940,8 @@ export default function SalesDashboard() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <p className="text-white font-medium">{order.jobNumber}</p>
-                      {order.priority === 'URGENT' && (
-                        <Badge className="bg-red-500/20 text-red-400 border-red-500/50 text-[10px]">URGENT</Badge>
+                      {isImportant(order) && (
+                        <Badge className="bg-red-500/20 text-red-400 border-red-500/50 text-[10px]">IMPORTANT</Badge>
                       )}
                       {isOverdue(order) && (
                         <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/50 text-[10px]">OVERDUE</Badge>
@@ -938,7 +995,7 @@ export default function SalesDashboard() {
                         <SelectItem value="LOW">Low</SelectItem>
                         <SelectItem value="NORMAL">Normal</SelectItem>
                         <SelectItem value="HIGH">High</SelectItem>
-                        <SelectItem value="URGENT">Urgent</SelectItem>
+                        <SelectItem value="URGENT">Important (urgent)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -955,10 +1012,10 @@ export default function SalesDashboard() {
                     Date read-only; Sales fills these in, including for old orders. */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label>Order Placement Date</Label>
-                    <Input type="date" value={editForm.orderDate}
-                      onChange={(e) => setEditForm({ ...editForm, orderDate: e.target.value })}
-                      className="bg-slate-800 border-slate-700 text-white" />
+                    <Label>Posted On (automatic)</Label>
+                    <div className="h-10 flex items-center px-3 rounded-md bg-slate-800/60 border border-slate-700 text-slate-300 text-sm">
+                      {formatDateTime(selectedOrder.orderDate)}
+                    </div>
                   </div>
                   <div>
                     <Label>Dispatch Date</Label>
@@ -1069,14 +1126,28 @@ export default function SalesDashboard() {
                   </div>
                 )}
 
+                {editForm.status === 'DISPATCHED' && !editForm.dispatchDate && (
+                  <p className="text-xs text-indigo-300">Dispatch date will be filled automatically with today's date.</p>
+                )}
+
                 <Button onClick={handleUpdateOrder} className="w-full bg-blue-600 hover:bg-blue-700">
                   Save Changes
                 </Button>
+
+                <OrderHistory orderId={selectedOrder.id} refreshKey={historyKey} />
               </div>
             )
           })()}
         </DialogContent>
       </Dialog>
+
+      {/* Full read-only details for ANY order — everything incl. edit history */}
+      <OrderDetailDialog
+        orderId={detailOrderId}
+        open={showFullDetails}
+        onOpenChange={setShowFullDetails}
+        refreshKey={historyKey}
+      />
     </div>
   )
 }

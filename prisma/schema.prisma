@@ -334,6 +334,7 @@ model Order {
   deliveryDate      DateTime?
   installationDate  DateTime?
   dispatchDate      DateTime?           // set by Sales; visible read-only to Design & Production
+  autoImportantAt   DateTime?           // set once when the order is auto-marked IMPORTANT (15 days after posting)
   
   // Dispatch / Delivery Outcome — set by Sales after DISPATCHED, so Production
   // knows if a unit must be remade due to a transport or manufacturing defect.
@@ -390,6 +391,7 @@ model Order {
   // single order creation — was previously unindexed.
   @@index([orderDate])
   @@index([dispatchDate])
+  @@index([autoImportantAt])
   @@index([needsRemake])
   @@map("orders")
 }

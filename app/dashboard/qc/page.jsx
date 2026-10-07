@@ -102,7 +102,7 @@ export default function QCDashboard() {
                       <Badge variant="outline">{order.status}</Badge>
                       <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/50">Qty: {formatQuantity(order.quantity)}</Badge>
                       {order.priority === 'URGENT' && (
-                        <Badge className="bg-red-500 text-white">VERY URGENT</Badge>
+                        <Badge className="bg-red-500 text-white">IMPORTANT</Badge>
                       )}
                     </div>
                     <p className="text-sm text-slate-400">{order.customer?.name} - {order.product?.name}</p>
